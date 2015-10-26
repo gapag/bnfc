@@ -98,10 +98,29 @@ prVisitor packageAbsyn funs =
     unlines [
              "  public interface Visitor <R,A> {",
              unlines (map prVisitFun funs),
+             "  }",
+             "",
+             "  public interface CompoundVisitor<Rb, Ro, R, A> {",
+             unlines (map prVisitFunDefault funs),
+             unlines (map prVisitBefore funs),
+             unlines (map prVisitOnwards funs),
+             unlines (map prVisitAfter funs),
              "  }"
             ]
     where
-    prVisitFun f = "    public R visit(" ++ packageAbsyn ++ "." ++ f ++ " p, A arg);"
+    prVisitFunSig modif funname f inter = "    "++modif++" R "++ funname ++"(" ++ packageAbsyn ++ "." ++ f ++ " p,"++inter++" A arg)"
+    prVisitFun f = (prVisitFunSig "public" "visit" f "") ++ ";"
+    prVisitBefore f = (prVisitFunSig "public" "before" f "") ++ ";"
+    prVisitOnwards f = (prVisitFunSig "public" "onwards" f "R previous,") ++ ";"
+    prVisitAfter f = (prVisitFunSig "public" "after" f "R previous,") ++ ";"
+    prVisitFunDefault f = unlines [
+            (prVisitFunSig "default" "visit" f "") ++ "{",
+            "      return this.after(p, this.onwards(p, this.before(p, arg), arg), arg);",
+            "    }"
+            ]
+
+
+
 
 --Generates classes for a rule, depending on what type of rule it is.
 prRule :: String   -- ^ Header

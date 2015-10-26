@@ -464,6 +464,7 @@ bnfcVisitorsAndTests pbase pabsyn cf cf0 cf1 cf2 cf3 cf4 cf5 cf6 =
     bfold = ( "FoldVisitor", app cf4),
     ball = ( "AllVisitor", app cf5),
     btest = ( "Test" , app cf6)
+
  }
     where app x = x pbase pabsyn cf
 
