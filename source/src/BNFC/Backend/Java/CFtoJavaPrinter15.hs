@@ -46,11 +46,10 @@
 -}
 module BNFC.Backend.Java.CFtoJavaPrinter15 ( cf2JavaPrinter ) where
 
-import BNFC.Backend.Java.CFtoJavaAbs15
-
 import BNFC.CF
 import BNFC.Backend.Common (renderListSepByPrecedence)
 import BNFC.Backend.Common.NamedVariables
+import BNFC.Backend.Java.Utils(TypeMapping)
 import BNFC.Utils ( (+++) )
 import Data.List
 import Data.Char ( toLower, isSpace )
@@ -63,19 +62,21 @@ import BNFC.PrettyPrint
 --show produces a Haskell-style syntax that can be extremely useful
 --especially for testing parser correctness.
 
-cf2JavaPrinter :: String -> String -> CF -> String
-cf2JavaPrinter packageBase packageAbsyn cf =
+cf2JavaPrinter :: TypeMapping -> String -> String -> CF -> String
+cf2JavaPrinter tm packageBase packageAbsyn cf =
   unlines
    [
     header,
     prEntryPoints packageAbsyn cf,
-    unlines (map (prData packageAbsyn user) groups),
-    unlines (map (shData packageAbsyn user) groups),
+    unlines (map (prData tm packageAbsyn user) groups),
+    unlines (map (shData tm packageAbsyn user) groups),
     footer
    ]
   where
     user = [n | (n,_) <- tokenPragmas cf]
     groups = fixCoercions (ruleGroupsInternals cf)
+    integerType = tm "Integer" []
+    doubleType  = tm "Double" []
     header = unlines [
       "package" +++ packageBase ++ ";",
       "import" +++ packageAbsyn ++ ".*;",
@@ -91,12 +92,12 @@ cf2JavaPrinter packageBase packageAbsyn cf =
       prRender
       ]
     footer = unlines [ --later only include used categories
-      "  private static void pp(Integer n, int _i_) { buf_.append(n); buf_.append(\" \"); }",
-      "  private static void pp(Double d, int _i_) { buf_.append(d); buf_.append(\" \"); }",
+      "  private static void pp(" ++ integerType ++ " n, int _i_) { buf_.append(n); buf_.append(\" \"); }",
+      "  private static void pp(" ++ doubleType ++ " d, int _i_) { buf_.append(d); buf_.append(\" \"); }",
       "  private static void pp(String s, int _i_) { buf_.append(s); buf_.append(\" \"); }",
       "  private static void pp(Character c, int _i_) { buf_.append(\"'\" + c.toString() + \"'\"); buf_.append(\" \"); }",
-      "  private static void sh(Integer n) { render(n.toString()); }",
-      "  private static void sh(Double d) { render(d.toString()); }",
+      "  private static void sh(" ++ integerType ++ " n) { render(n.toString()); }",
+      "  private static void sh(" ++ doubleType ++ " d) { render(d.toString()); }",
       "  private static void sh(Character c) { render(c.toString()); }",
       "  private static void sh(String s) { printQuoted(s); }",
       "  private static void printQuoted(String s) { render(\"\\\"\" + s + \"\\\"\"); }",
@@ -212,15 +213,15 @@ prEntryPoints packageAbsyn cf =
     cat' = identCat cat
   prEntryPoint _ = ""
 
-prData :: String ->  [UserDef] -> (Cat, [Rule]) -> String
-prData packageAbsyn user (cat, rules) =
+prData :: TypeMapping ->  String ->  [UserDef] -> (Cat, [Rule]) -> String
+prData tm packageAbsyn user (cat, rules) =
  if isList cat
  then unlines
  [
   "  private static void pp(" ++ packageAbsyn ++ "."
       ++ identCat (normCat cat) +++ "foo, int _i_)",
   "  {",
-  render $ nest 5 $ prList user cat rules <> "  }"
+  render $ nest 5 $ prList tm user cat rules <> "  }"
  ]
  else unlines --not a list
  [
@@ -266,8 +267,8 @@ prRule _nm _ = ""
 --     render(".");
 --   }
 -- }
-prList :: [UserDef] -> Cat -> [Rule] -> Doc
-prList user c rules =
+prList :: TypeMapping ->  [UserDef] -> Cat -> [Rule] -> Doc
+prList tm user c rules =
     "for (java.util.Iterator<" <> et <> "> it = foo.iterator(); it.hasNext();)"
     $$ codeblock 2
         [ "pp(it.next(), _i_);"
@@ -279,7 +280,7 @@ prList user c rules =
         , "}"
         ]
    where
-    et = text (typename (show $ normCatOfList c) user)
+    et = text (tm (show $ normCatOfList c) user)
     sep = escapeChars $ getCons rules
     optsep = if hasOneFunc rules then "" else sep
     renderSep x = "render(\"" <> text x <>"\")"
@@ -306,14 +307,14 @@ prCat fnm (Left (cat, nt))
 
 --The following methods generate the Show function.
 
-shData :: String -> [UserDef] -> (Cat, [Rule]) -> String
-shData packageAbsyn user (cat, rules) =
+shData :: TypeMapping -> String -> [UserDef] -> (Cat, [Rule]) -> String
+shData tm packageAbsyn user (cat, rules) =
  if isList cat
  then unlines
  [
   "  private static void sh(" ++ packageAbsyn ++ "." ++ identCat (normCat cat) +++ "foo)",
   "  {",
-  shList user cat rules ++ "  }"
+  shList tm user cat rules ++ "  }"
  ]
  else unlines
  [
@@ -347,8 +348,8 @@ shRule packageAbsyn (Rule fun _c cats) | not (isCoercion fun || isDefinedRule fu
     fnm = '_' : map toLower fun
 shRule _nm _ = ""
 
-shList :: [UserDef] -> Cat -> [Rule] -> String
-shList user c _rules = unlines
+shList :: TypeMapping -> [UserDef] -> Cat -> [Rule] -> String
+shList tm user c _rules = unlines
   [
    "     for (java.util.Iterator<" ++ et
           ++ "> it = foo.iterator(); it.hasNext();)",
@@ -359,7 +360,7 @@ shList user c _rules = unlines
    "     }"
   ]
     where
-    et = typename (show $ normCatOfList c) user
+    et = tm (show $ normCatOfList c) user
 
 -- |
 -- >>> shCat "F" (ListCat (Cat "A"), "lista_")

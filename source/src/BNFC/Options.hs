@@ -57,6 +57,10 @@ data HappyMode = Standard | GLR
 
 data JavaLexerParser = JLexCup | JFlexCup | Antlr4
     deriving (Eq,Show,Ord)
+
+data CFToJavaTypeMapping = Strict | Flexible
+    deriving (Eq,Show,Ord)
+
 -- | This is the option record that is passed to the different backends
 data SharedOptions = Options
   -- Option shared by at least 2 backends
@@ -70,6 +74,7 @@ data SharedOptions = Options
   -- Haskell specific:
   , alexMode :: AlexVersion
   , javaLexerParser :: JavaLexerParser
+  , javaTypeMapping :: CFToJavaTypeMapping
   , inDir :: Bool
   , shareStrings :: Bool
   , byteStrings :: Bool
@@ -110,6 +115,7 @@ defaultOptions = Options
   , functor = False
   , outDir  = "."
   , javaLexerParser = JLexCup
+  , javaTypeMapping = Strict
   }
 
 -- ~~~ Option definition ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -167,6 +173,12 @@ specificOptions =
     , ( Option [] ["antlr4"] (NoArg (\o -> o {javaLexerParser = Antlr4}))
               "Lex and parse with antlr4"
         , [TargetJava] )
+    , ( Option [] ["strict"] (NoArg (\o -> o {javaTypeMapping = Strict}))
+                  "Built-in BNFC category Integer/Double maps to \njava.lang.Integer/java.lang.Double (default)"
+            , [TargetJava] )
+    , ( Option [] ["flexible"] (NoArg (\o -> o {javaTypeMapping = Flexible}))
+                  "Built-in BNFC category Integer/Double maps to \njava.math.BigInteger/java.math.BigDecimal"
+                , [TargetJava] )
   , ( Option [] ["vs"] (NoArg (\o -> o {visualStudio = True}))
           "Generate Visual Studio solution/project files"
     , [TargetCSharp] )

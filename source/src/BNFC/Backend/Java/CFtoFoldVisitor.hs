@@ -21,14 +21,14 @@
 module BNFC.Backend.Java.CFtoFoldVisitor (cf2FoldVisitor) where
 
 import BNFC.CF
-import BNFC.Backend.Java.CFtoJavaAbs15 (typename)
+import BNFC.Backend.Java.Utils(isBasicType, TypeMapping)
 import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
 import Data.Either (lefts)
 import BNFC.PrettyPrint
 
-cf2FoldVisitor :: String -> String -> CF -> String
-cf2FoldVisitor packageBase packageAbsyn cf =
+cf2FoldVisitor :: TypeMapping -> String -> String -> CF -> String
+cf2FoldVisitor tm packageBase packageAbsyn cf =
   unlines
     ["package" +++ packageBase ++ ";",
      "",
@@ -42,22 +42,22 @@ cf2FoldVisitor packageBase packageAbsyn cf =
      "    public abstract R leaf(A arg);",
      "    public abstract R combine(R x, R y, A arg);",
      "",
-     concatMap (prData packageAbsyn user) groups,
+     concatMap (prData tm packageAbsyn user) groups,
      "}"]
   where
     user = fst (unzip (tokenPragmas cf))
     groups = [ g | g@(c,_) <- fixCoercions (ruleGroupsInternals cf), not (isList c) ]
 
 --Traverses a category based on its type.
-prData :: String -> [UserDef] -> (Cat, [Rule]) -> String
-prData packageAbsyn user (cat, rules) = unlines
+prData :: TypeMapping -> String -> [UserDef] -> (Cat, [Rule]) -> String
+prData tm packageAbsyn user (cat, rules) = unlines
     [ "/* " ++ identCat cat ++ " */"
-    , concatMap (prRule packageAbsyn user cat) rules
+    , concatMap (prRule tm packageAbsyn user cat) rules
     ]
 
 --traverses a standard rule.
-prRule :: String -> [UserDef] -> Cat -> Rule -> String
-prRule packageAbsyn user _ (Rule fun _ cats)
+prRule :: TypeMapping -> String -> [UserDef] -> Cat -> Rule -> String
+prRule tm packageAbsyn user _ (Rule fun _ cats)
     | not (isCoercion fun || isDefinedRule fun) = unlines $
   ["    public R visit(" ++ cls ++ " p, A arg) {",
    "      R r = leaf(arg);"]
@@ -67,8 +67,8 @@ prRule packageAbsyn user _ (Rule fun _ cats)
    where
     cats' = filter ((/= InternalCat) . fst) (lefts (numVars cats))
     cls = packageAbsyn ++ "." ++ fun
-    visitVars = lines $ render $ vcat $ map (prCat user) cats'
-prRule  _ _ _ _ = ""
+    visitVars = lines $ render $ vcat $ map (prCat tm user) cats'
+prRule _ _ _ _ _ = ""
 
 -- | Traverses a class's instance variables.
 -- >>> prCat [Cat "A"] (Cat "A", "a_")
@@ -82,10 +82,11 @@ prRule  _ _ _ _ = ""
 -- }
 -- >>> prCat [] (Cat "N", "n_")
 -- r = combine(p.n_.accept(this, arg), r, arg);
-prCat :: [UserDef]
+prCat :: TypeMapping
+      -> [UserDef]
       -> (Cat, Doc) -- ^ Variable category and name
       -> Doc        -- ^ Code for visiting the variable
-prCat user (cat,nt)
+prCat tm user (cat,nt)
     | isBasicType user varType || (isList cat && isBasicType user et) = empty
     | isList cat = vcat
         [ "for (" <> text et <> " x : " <> var <> ")"
@@ -93,10 +94,5 @@ prCat user (cat,nt)
     | otherwise = "r = combine(" <> var <> ".accept(this, arg), r, arg);"
       where
       var = "p." <> nt
-      varType = typename (identCat (normCat cat)) user
-      et      = typename (show$normCatOfList cat) user
-
---Just checks if something is a basic or user-defined type.
-isBasicType :: [UserDef] -> String -> Bool
-isBasicType user v = v `elem` (map show user ++ ["Integer","Character","String","Double"])
-
+      varType = tm (identCat (normCat cat)) user
+      et      = tm (show$normCatOfList cat) user

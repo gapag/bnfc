@@ -41,7 +41,7 @@
 module BNFC.Backend.Java.CFtoVisitSkel15 (cf2VisitSkel) where
 
 import BNFC.CF
-import BNFC.Backend.Java.CFtoJavaAbs15 (typename)
+import BNFC.Backend.Java.Utils(TypeMapping)
 import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
 import Text.PrettyPrint
@@ -50,12 +50,12 @@ import Data.Either (lefts)
 --Produces a Skeleton using the Visitor Design Pattern.
 --Thus the user can choose which Skeleton to use.
 
-cf2VisitSkel :: String -> String -> CF -> String
-cf2VisitSkel packageBase packageAbsyn cf =
+cf2VisitSkel :: TypeMapping -> String -> String -> CF -> String
+cf2VisitSkel tm packageBase packageAbsyn cf =
   concat [
     header,
 --    "  // NOT IMPLEMENTED for java1.5\n",
-    concatMap (prData packageAbsyn user) groups,
+    concatMap (prData tm packageAbsyn user) groups,
     "}"]
   where
     user = fst (unzip (tokenPragmas cf))
@@ -76,14 +76,14 @@ cf2VisitSkel packageBase packageAbsyn cf =
 
 
 --Traverses a category based on its type.
-prData :: String -> [UserDef] -> (Cat, [Rule]) -> String
-prData packageAbsyn user (cat, rules)
+prData :: TypeMapping -> String -> [UserDef] -> (Cat, [Rule]) -> String
+prData tm packageAbsyn user (cat, rules)
     | isList cat = ""
     | otherwise = unlines
         ["  public class " ++ identCat cat ++ "Visitor<R,A> implements "
             ++ identCat cat ++ ".Visitor<R,A>"
         , "  {"
-        , concatMap (render . nest 4 . prRule packageAbsyn user) rules
+        , concatMap (render . nest 4 . prRule tm packageAbsyn user) rules
         , "  }"
         ]
 
@@ -103,19 +103,19 @@ prData packageAbsyn user (cat, rules)
 --   //p.integer_;
 --   return null;
 -- }
-prRule :: String -> [UserDef] -> Rule -> Doc
-prRule packageAbsyn user (Rule fun _ cats)
+prRule :: TypeMapping -> String -> [UserDef] -> Rule -> Doc
+prRule tm packageAbsyn user (Rule fun _ cats)
   | not (isCoercion fun || isDefinedRule fun) = vcat
     [ "public R visit(" <> text packageAbsyn <> "." <> fname <> " p, A arg)"
     , "{"
     , nest 2 ( "/* Code For " <> fname <> " Goes Here */"
-            $$ vcat (map (prCat user) cats')
+            $$ vcat (map (prCat tm user) cats')
             $$ "return null;" )
     , "}" ]
   where
     fname = text fun                            -- function name
     cats' = filter ((/= InternalCat).fst) (lefts (numVars cats))  -- non-terminals in the rhs
-prRule _ _ _ = ""
+prRule _ _ _ _ = ""
 
 -- | Traverses a class's instance variables.
 -- >>> prCat [] (Cat "A", "a_")
@@ -129,16 +129,16 @@ prRule _ _ _ = ""
 -- >>> prCat [] (ListCat (Cat "A"), "lista_")
 -- for (A x: p.lista_)
 -- { /* ... */ }
-prCat :: [UserDef]    -- ^ User defined tokens
+prCat :: TypeMapping -> [UserDef]    -- ^ User defined tokens
       -> (Cat, Doc)   -- ^ Variable category and name
       -> Doc          -- ^ Code for visiting the variable
-prCat user (cat, nt)
+prCat tm user (cat, nt)
   | isTokenCat cat = "//" <> var <> ";"
   | isList cat           = "for" <+> parens (text et <+> "x:" <+> var)
                         $$ braces " /* ... */ "
   | otherwise            = accept
   where
       var = "p." <> nt
-      varType = typename (identCat (normCat cat)) user
+      varType = tm (identCat (normCat cat)) user
       accept = var <> ".accept(new " <> text varType <> "Visitor<R,A>(), arg);"
-      et = typename (show $normCatOfList cat) user
+      et = tm (show $normCatOfList cat) user

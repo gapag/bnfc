@@ -42,6 +42,7 @@ module BNFC.Backend.Java.CFtoCup15 ( cf2Cup ) where
 import BNFC.CF
 import Data.List
 import BNFC.Backend.Common.NamedVariables
+import BNFC.Backend.Java.Utils(TypeMapping)
 import BNFC.Utils ( (+++) )
 import BNFC.TypeChecker  -- We need to (re-)typecheck to figure out list instances in
                     -- defined rules.
@@ -56,8 +57,8 @@ type Action      = String
 type MetaVar     = String
 
 --The environment comes from the CFtoJLex
-cf2Cup :: String -> String -> CF -> SymEnv -> String
-cf2Cup packageBase packageAbsyn cf env = unlines
+cf2Cup :: TypeMapping -> String -> String -> CF -> SymEnv -> String
+cf2Cup tm packageBase packageAbsyn cf env = unlines
     [
      header,
      declarations packageAbsyn (allCats cf),

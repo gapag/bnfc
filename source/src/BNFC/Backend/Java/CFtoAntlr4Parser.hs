@@ -53,11 +53,11 @@ type MetaVar     = (String, Cat)
 
 -- | Creates the ANTLR parser grammar for this CF.
 --The environment comes from CFtoAntlr4Lexer
-cf2AntlrParse :: String -> String -> CF -> SymEnv -> String
-cf2AntlrParse packageBase packageAbsyn cf env = unlines
+cf2AntlrParse :: TypeMapping -> String -> String -> CF -> SymEnv -> String
+cf2AntlrParse tm packageBase packageAbsyn cf env = unlines
     [ header
     , tokens
-    , prRules packageAbsyn (rulesForAntlr4 packageAbsyn cf env)
+    , prRules packageAbsyn (rulesForAntlr4 tm packageAbsyn cf env)
     ]
   where
     header :: String
@@ -72,19 +72,23 @@ cf2AntlrParse packageBase packageAbsyn cf env = unlines
         , "}"
         ]
 
---The following functions are a (relatively) straightforward translation
---of the ones in CFtoHappy.hs
-rulesForAntlr4 :: String -> CF -> SymEnv -> Rules
-rulesForAntlr4 packageAbsyn cf env = map mkOne getrules
+rulesForAntlr4 :: TypeMapping -> String -> CF -> SymEnv -> Rules
+rulesForAntlr4 tm packageAbsyn cf env = map mkOne getrules
   where
     getrules          = ruleGroups cf
-    mkOne (cat,rules) = constructRule packageAbsyn cf env rules cat
+    mkOne (cat,rules) = constructRule tm packageAbsyn cf env rules cat
 
 -- | For every non-terminal, we construct a set of rules. A rule is a sequence of
 -- terminals and non-terminals, and an action to be performed.
-constructRule :: String -> CF -> SymEnv -> [Rule] -> NonTerminal -> (NonTerminal,[(Pattern, Fun, Action)])
-constructRule packageAbsyn cf env rules nt =
-    (nt, [ (p , funRule r , generateAction packageAbsyn nt (funRule r) (revM b m) b)
+constructRule :: TypeMapping
+    -> String
+    -> CF
+    -> SymEnv
+    -> [Rule]
+    -> NonTerminal
+    -> (NonTerminal,[(Pattern, Fun, Action)])
+constructRule tm packageAbsyn cf env rules nt =
+    (nt, [ (p , funRule r , generateAction tm packageAbsyn nt (funRule r) (revM b m) b)
           | (index ,r0) <- zip [1..(length rules)] rules,
           let (b,r) = if isConsFun (funRule r0) && elem (valCat r0) revs
                           then (True, revSepListRule r0)
@@ -96,11 +100,11 @@ constructRule packageAbsyn cf env rules nt =
    revs       = cfgReversibleCats cf
 
 -- Generates a string containing the semantic action.
-generateAction :: String -> NonTerminal -> Fun -> [MetaVar]
+generateAction :: TypeMapping -> String -> NonTerminal -> Fun -> [MetaVar]
                -> Bool   -- ^ Whether the list should be reversed or not.
                          --   Only used if this is a list rule.
                -> Action
-generateAction packageAbsyn nt f ms rev
+generateAction tm packageAbsyn nt f ms rev
     | isNilFun f = "$result = new " ++ c ++ "();"
     | isOneFun f = "$result = new " ++ c ++ "(); $result.addLast("
         ++ p_1 ++ ");"
@@ -120,14 +124,13 @@ generateAction packageAbsyn nt f ms rev
      add               = if rev then "addLast" else "addFirst"
      gettext           = "getText()"
      removeQuotes x    = "substring(1, "++ x +.+ gettext +.+ "length()-1)"
-     parseint x        = "Integer.parseInt("++x++")"
-     parsedouble x     = "Double.parseDouble("++x++")"
+     newInstance typ x = "new "++(tm typ [])++"("++x++")"
      charat            = "charAt(1)"
      resultvalue (n,c) = case c of
                           TokenCat "Ident"   -> n'+.+gettext
-                          TokenCat "Integer" -> parseint $ n'+.+gettext
+                          TokenCat "Integer" -> newInstance "Integer" $ n'+.+gettext
                           TokenCat "Char"    -> n'+.+gettext+.+charat
-                          TokenCat "Double"  -> parsedouble $ n'+.+gettext
+                          TokenCat "Double"  -> newInstance "Double" $ n'+.+gettext
                           TokenCat "String"  -> n'+.+gettext+.+removeQuotes n'
                           _         -> (+.+) n' (if isTokenCat c then gettext else "result")
                           where n' = '$':n

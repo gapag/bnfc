@@ -70,25 +70,25 @@ makeJava options@Options{..} cf =
       let packageBase  = case inPackage of
                              Nothing -> lang
                              Just p -> p ++ "." ++ lang
+
           packageAbsyn = packageBase ++ "." ++ "Absyn"
           dirBase      = pkgToDir packageBase
           dirAbsyn = pkgToDir packageAbsyn
           javaex str = dirBase ++ str +.+ "java"
           bnfcfiles = bnfcVisitorsAndTests packageBase packageAbsyn cf
-                    cf2JavaPrinter
-                            cf2VisitSkel
-                            cf2ComposVisitor
-                            cf2AbstractVisitor
-                            cf2FoldVisitor
-                            cf2AllVisitor
-                            (testclass parselexspec
+                    (cf2JavaPrinter typemapping)
+                    (cf2VisitSkel typemapping)
+                    (cf2ComposVisitor typemapping)
+                    cf2AbstractVisitor
+                    (cf2FoldVisitor typemapping)
+                    cf2AllVisitor
+                    (testclass parselexspec
                                 (head $ results lexmake) -- lexer class
                                 (head $ results parmake) -- parser class
                                 )
           makebnfcfile x = mkfile (javaex (fst $ x bnfcfiles))
                                             (snd $ x bnfcfiles)
-
-      let absynFiles = remDups $ cf2JavaAbs packageBase packageAbsyn cf
+      let absynFiles = remDups $ cf2JavaAbs typemapping packageBase packageAbsyn cf
           absynBaseNames = map fst absynFiles
           absynFileNames = map (dirAbsyn ++) absynBaseNames
       let writeAbsyn (filename, contents) =
@@ -118,17 +118,20 @@ makeJava options@Options{..} cf =
       Makefile.mkMakefile options $
           makefile dirBase dirAbsyn absynFileNames parselexspec
     where
-      remDups [] = []
+      typemapping        = case javaTypeMapping of
+                            Strict   -> strictTypename
+                            Flexible -> flexibleTypename
+      remDups []         = []
       remDups ((a,b):as) = case lookup a as of
                              Just {} -> remDups as
                              Nothing -> (a, b) : remDups as
       pkgToDir :: String -> FilePath
-      pkgToDir s = replace '.' pathSeparator s ++ [pathSeparator]
-      parselexspec = parserLexerSelector lang javaLexerParser
-      lexfun = cf2lex $ lexer parselexspec
-      parsefun = cf2parse $ parser parselexspec
-      parmake = makeparserdetails (parser parselexspec)
-      lexmake = makelexerdetails (lexer parselexspec)
+      pkgToDir s         = replace '.' pathSeparator s ++ [pathSeparator]
+      parselexspec       = parserLexerSelector lang javaLexerParser typemapping
+      lexfun             = cf2lex $ lexer parselexspec
+      parsefun           = cf2parse $ parser parselexspec
+      parmake            = makeparserdetails (parser parselexspec)
+      lexmake            = makelexerdetails (lexer parselexspec)
 
 makefile ::  FilePath -> FilePath -> [String] -> ParserLexerSpecification -> Doc
 makefile  dirBase dirAbsyn absynFileNames jlexpar = vcat $
@@ -263,10 +266,10 @@ antlrtest = javaTest [ "org.antlr.v4.runtime","org.antlr.v4.runtime.atn"
              (\pbase pabs enti -> vcat
                     [
                     let rulename = getRuleName (show enti)
-                        typename = text rulename
+                        typename_ = text rulename
                         methodname = text $ firstLowerCase rulename
                     in
-                        pbase <> "." <> typename <> "Context pc = p."
+                        pbase <> "." <> typename_ <> "Context pc = p."
                               <> methodname <> "();"
                         , "org.antlr.v4.runtime.Token _tkn = p.getInputStream()"
                           <> ".getTokenSource().nextToken();"
@@ -277,17 +280,17 @@ antlrtest = javaTest [ "org.antlr.v4.runtime","org.antlr.v4.runtime.atn"
                     ])
                     "At line \" + e.line + \", column \" + e.column + \" :"
 
-parserLexerSelector :: String -> JavaLexerParser -> ParserLexerSpecification
-parserLexerSelector _ JLexCup = ParseLexSpec
+parserLexerSelector :: String -> JavaLexerParser -> TypeMapping -> ParserLexerSpecification
+parserLexerSelector _ JLexCup tm = ParseLexSpec
     { lexer     = cf2JLex
-    , parser    = cf2cup
+    , parser    = cf2cup tm
     , testclass = cuptest
     }
-parserLexerSelector _ JFlexCup =
-    (parserLexerSelector "" JLexCup){lexer = cf2JFlex}
-parserLexerSelector l Antlr4 = ParseLexSpec
+parserLexerSelector _ JFlexCup tm =
+    (parserLexerSelector "" JLexCup tm){lexer = cf2JFlex}
+parserLexerSelector l Antlr4 tm = ParseLexSpec
     { lexer     = cf2AntlrLex' l
-    , parser    = cf2AntlrParse' l
+    , parser    = cf2AntlrParse' l tm
     , testclass = antlrtest
     }
 
@@ -338,16 +341,16 @@ data CFToParser = CF2Parse
     }
 
 -- | Instances of cf-parsergen bridges
-cf2cup :: CFToParser
-cf2cup = CF2Parse
-    { cf2parse          = BNFC.Backend.Java.CFtoCup15.cf2Cup
+cf2cup :: TypeMapping -> CFToParser
+cf2cup tm = CF2Parse
+    { cf2parse          = BNFC.Backend.Java.CFtoCup15.cf2Cup tm
     , makeparserdetails = cupmakedetails
     }
 
-cf2AntlrParse' :: String -> CFToParser
-cf2AntlrParse' l = CF2Parse
+cf2AntlrParse' :: String -> TypeMapping -> CFToParser
+cf2AntlrParse' l tm = CF2Parse
                 { cf2parse          =
-                    BNFC.Backend.Java.CFtoAntlr4Parser.cf2AntlrParse
+                    BNFC.Backend.Java.CFtoAntlr4Parser.cf2AntlrParse tm
                 , makeparserdetails = antlrmakedetails $ l++"Parser"
                 }
 

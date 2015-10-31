@@ -1,4 +1,14 @@
-module BNFC.Backend.Java.Utils where
+module BNFC.Backend.Java.Utils
+ ( isBasicType
+ , getRuleName
+ , isReserved
+ , getLabelName
+ , TypeMapping
+ , strictTypename
+ , flexibleTypename
+
+     )
+ where
 import BNFC.Backend.Common.NamedVariables
 import BNFC.Utils ( mkName, NameStyle(..))
 
@@ -19,3 +29,33 @@ getRuleName z = if x `elem` ("grammar" : javaReserved) then z ++ "_" else z
                 where x = firstLowerCase z
 
 getLabelName = mkName ["Rule"] CamelCase
+
+isReserved :: String -> Bool
+isReserved x = x `elem` javaReserved
+
+-- Checks if something is a basic or user-defined type.
+isBasicType :: [UserDef] -> String -> Bool
+isBasicType user v =
+    v `elem` (map show user ++ ["Integer"
+                               , "Character"
+                               , "String"
+                               , "Double"
+                               , "java.math.BigInteger"
+                               , "java.math.BigDecimal"
+                               ])
+
+type TypeMapping = String -> [UserDef] -> String
+
+--This makes up for the fact that there's no typedef in Java
+strictTypename :: String -> [UserDef] -> String
+strictTypename t user | t == "Ident"            = "String"
+                | t == "Char"             = "Character"
+                | t `elem` map show user  = "String"
+                | t == "Integer"          = "Integer"
+                | t == "Double"           = "Double"
+                | otherwise               = t
+
+flexibleTypename :: String -> [UserDef] -> String
+flexibleTypename t user | t == "Integer"  = "java.math.BigInteger"
+                | t == "Double"           = "java.math.BigDecimal"
+                | otherwise               = strictTypename t user

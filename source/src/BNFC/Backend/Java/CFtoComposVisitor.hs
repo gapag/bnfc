@@ -23,16 +23,16 @@ module BNFC.Backend.Java.CFtoComposVisitor (cf2ComposVisitor) where
 import Data.List
 import Data.Either (lefts)
 import BNFC.CF
-import BNFC.Backend.Java.CFtoJavaAbs15 (typename)
+import BNFC.Backend.Java.Utils (TypeMapping, isBasicType)
 import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
 import BNFC.PrettyPrint
 
-cf2ComposVisitor :: String -> String -> CF -> String
-cf2ComposVisitor packageBase packageAbsyn cf =
+cf2ComposVisitor :: TypeMapping -> String -> String -> CF -> String
+cf2ComposVisitor tm packageBase packageAbsyn cf =
   concat [
     header,
-    concatMap (prData packageAbsyn user) groups,
+    concatMap (prData tm packageAbsyn user) groups,
     "}"]
   where
     user   = fst (unzip (tokenPragmas cf))
@@ -57,10 +57,10 @@ prInterface packageAbsyn (cat, _) =
   where q = packageAbsyn ++ "." ++ identCat cat
 
 --Traverses a category based on its type.
-prData :: String -> [UserDef] -> (Cat, [Rule]) -> String
-prData packageAbsyn user (cat, rules) = unlines
+prData :: TypeMapping -> String -> [UserDef] -> (Cat, [Rule]) -> String
+prData tm packageAbsyn user (cat, rules) = unlines
     [ "/* " ++ identCat cat ++ " */"
-    , concatMap (render . prRule packageAbsyn user cat) rules
+    , concatMap (render . prRule tm packageAbsyn user cat) rules
     ]
 -- | traverses a standard rule.
 -- >>> prRule "lang.absyn" [Cat "A"] (Cat "B") (Rule "F" (Cat "B") [Left (Cat "A"), Right "+", Left (ListCat (Cat "B"))])
@@ -74,18 +74,18 @@ prData packageAbsyn user (cat, rules) = unlines
 --       }
 --       return new lang.absyn.F(a_, listb_);
 --     }
-prRule :: String -> [UserDef] -> Cat -> Rule -> Doc
-prRule packageAbsyn user cat (Rule fun _ cats)
+prRule :: TypeMapping -> String -> [UserDef] -> Cat -> Rule -> Doc
+prRule tm packageAbsyn user cat (Rule fun _ cats)
   | not (isCoercion fun || isDefinedRule fun) = nest 4 $ vcat
     [ "public " <> text(identCat cat) <> " visit(" <> cls <> " p, A arg)"
     , codeblock 2
-        [ vcat (map (prCat user) cats')
+        [ vcat (map (prCat tm user) cats')
         , "return new" <+> cls <> parens (hsep (punctuate "," vnames)) <> ";" ] ]
   where
     cats' = filter ((/= InternalCat) . fst) (lefts (numVars cats))
     cls = text (packageAbsyn ++ "." ++ fun)
     vnames = map snd cats'
-prRule  _ _ _ _ = ""
+prRule _ _ _ _ _ = ""
 
 -- | Traverses a class's instance variables.
 -- >>> prCat [Cat "A"] (Cat "A", "a_")
@@ -100,10 +100,11 @@ prRule  _ _ _ _ = ""
 -- }
 -- >>> prCat [] (Cat "N", "n_")
 -- N n_ = p.n_.accept(this, arg);
-prCat :: [UserDef]  -- ^ User defined token categories
-      -> (Cat, Doc) -- ^ Variable category and names
-      -> Doc        -- ^ Code for visiting the variable
-prCat user (cat, nt)
+prCat :: TypeMapping -- ^ Mapping from CF types to Java types
+      -> [UserDef]   -- ^ User defined token categories
+      -> (Cat, Doc)  -- ^ Variable category and names
+      -> Doc         -- ^ Code for visiting the variable
+prCat tm user (cat, nt)
   | isBasicType user varType || (isList cat && isBasicType user et) = decl var
   | isList cat = decl ("new" <+> text varType <> "()")
               $$ "for (" <> text et <> " x : " <> var <> ")"
@@ -111,12 +112,7 @@ prCat user (cat, nt)
   | otherwise = decl (var <> ".accept(this, arg)")
   where
     var     = "p." <> nt
-    varType = typename (identCat (normCat cat)) user
-    et      = typename (show$normCatOfList cat) user
+    varType = tm (identCat (normCat cat)) user
+    et      = tm (show$normCatOfList cat) user
     decl v  = text varType <+> nt <+> "=" <+> v <> ";"
-
---Just checks if something is a basic or user-defined type.
-isBasicType :: [UserDef] -> String -> Bool
-isBasicType user v =
-    v `elem` (map show user ++ ["Integer","Character","String","Double"])
 
