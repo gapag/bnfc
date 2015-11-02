@@ -119,8 +119,11 @@ makeJava options@Options{..} cf =
           makefile dirBase dirAbsyn absynFileNames parselexspec
     where
       typemapping        = case javaTypeMapping of
-                            Strict   -> strictTypename
-                            Flexible -> flexibleTypename
+                            IntegerFloat  -> integerFloatTypename
+                            IntegerDouble -> integerDoubleTypename
+                            LongDouble    -> longDoubleTypename
+                            LongFloat     -> longFloatTypename
+                            Flexible      -> flexibleTypename
       remDups []         = []
       remDups ((a,b):as) = case lookup a as of
                              Just {} -> remDups as

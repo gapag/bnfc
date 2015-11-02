@@ -78,7 +78,7 @@ cf2Cup tm packageBase packageAbsyn cf env = unlines
           , parseMethod packageAbsyn (firstEntry cf)
           , "public <B,A extends java.util.LinkedList<? super B>> "
             ++ "A cons_(B x, A xs) { xs.addFirst(x); return xs; }"
-          , definedRules packageAbsyn cf
+          , definedRules tm packageAbsyn cf
           , "public void syntax_error(java_cup.runtime.Symbol cur_token)"
           , "{"
           , "\treport_error(\"Syntax Error, trying to recover and continue"
@@ -94,8 +94,8 @@ cf2Cup tm packageBase packageAbsyn cf env = unlines
           , ":}"
           ]
 
-definedRules :: String -> CF -> String
-definedRules packageAbsyn cf =
+definedRules :: TypeMapping -> String -> CF -> String
+definedRules tm packageAbsyn cf =
         unlines [ rule f xs e | FunDef f xs e <- cfgPragmas cf ]
     where
         ctx = buildContext cf
@@ -140,11 +140,11 @@ definedRules packageAbsyn cf =
                     | isUpper (head x)  = call
                                     ("new " ++ packageAbsyn ++ "." ++ x) es
                     | otherwise         = call (x ++ "_") es
-                javaExp (LitInt n)      = "new Integer(" ++ show n ++ ")"
-                javaExp (LitDouble x)   = "new Double(" ++ show x ++ ")"
-                javaExp (LitChar c)     = "new Character(" ++ show c ++ ")"
-                javaExp (LitString s)   = "new String(" ++ show s ++ ")"
-
+                javaExp (LitInt n)      = newInstance "Integer" n
+                javaExp (LitDouble x)   = newInstance "Double" x
+                javaExp (LitChar c)     = newInstance "Character" c
+                javaExp (LitString s)   = newInstance "String" s
+                newInstance typ x = "new "++(tm typ [])++"("++show x++")"
                 call x es = x ++ "(" ++ intercalate ", " (map javaExp es) ++ ")"
 
 

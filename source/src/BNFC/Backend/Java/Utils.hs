@@ -4,7 +4,10 @@ module BNFC.Backend.Java.Utils
  , isReserved
  , getLabelName
  , TypeMapping
- , strictTypename
+ , integerFloatTypename
+ , integerDoubleTypename
+ , longFloatTypename
+ , longDoubleTypename
  , flexibleTypename
 
      )
@@ -40,6 +43,8 @@ isBasicType user v =
                                , "Character"
                                , "String"
                                , "Double"
+                               , "Float"
+                               , "Long"
                                , "java.math.BigInteger"
                                , "java.math.BigDecimal"
                                ])
@@ -47,15 +52,28 @@ isBasicType user v =
 type TypeMapping = String -> [UserDef] -> String
 
 --This makes up for the fact that there's no typedef in Java
-strictTypename :: String -> [UserDef] -> String
-strictTypename t user | t == "Ident"            = "String"
+integerDoubleTypename
+    , integerFloatTypename
+    , flexibleTypename
+    , longDoubleTypename
+    , longFloatTypename    :: String -> [UserDef] -> String
+integerDoubleTypename t user | t == "Ident"            = "String"
                 | t == "Char"             = "Character"
                 | t `elem` map show user  = "String"
                 | t == "Integer"          = "Integer"
                 | t == "Double"           = "Double"
                 | otherwise               = t
 
-flexibleTypename :: String -> [UserDef] -> String
+
+integerFloatTypename t user | t == "Double" = "Float"
+                    | otherwise = integerDoubleTypename t user
+
+longFloatTypename t user | t == "Integer" = "Long"
+                    | otherwise = integerFloatTypename t user
+
+longDoubleTypename t user | t == "Integer" = "Long"
+                    | otherwise = integerDoubleTypename t user
+
 flexibleTypename t user | t == "Integer"  = "java.math.BigInteger"
                 | t == "Double"           = "java.math.BigDecimal"
-                | otherwise               = strictTypename t user
+                | otherwise               = integerDoubleTypename t user

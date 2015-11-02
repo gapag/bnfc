@@ -58,7 +58,11 @@ data HappyMode = Standard | GLR
 data JavaLexerParser = JLexCup | JFlexCup | Antlr4
     deriving (Eq,Show,Ord)
 
-data CFToJavaTypeMapping = Strict | Flexible
+data CFToJavaTypeMapping = IntegerDouble
+    | IntegerFloat
+    | LongDouble
+    | LongFloat
+    | Flexible
     deriving (Eq,Show,Ord)
 
 -- | This is the option record that is passed to the different backends
@@ -115,7 +119,7 @@ defaultOptions = Options
   , functor = False
   , outDir  = "."
   , javaLexerParser = JLexCup
-  , javaTypeMapping = Strict
+  , javaTypeMapping = IntegerDouble
   }
 
 -- ~~~ Option definition ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -173,11 +177,20 @@ specificOptions =
     , ( Option [] ["antlr4"] (NoArg (\o -> o {javaLexerParser = Antlr4}))
               "Lex and parse with antlr4"
         , [TargetJava] )
-    , ( Option [] ["strict"] (NoArg (\o -> o {javaTypeMapping = Strict}))
-                  "Built-in BNFC category Integer/Double maps to \njava.lang.Integer/java.lang.Double (default)"
+    , ( Option [] ["integerDouble"] (NoArg (\o -> o {javaTypeMapping = IntegerDouble}))
+                  "Built-in BNFC category Integer/Double maps \nto java.lang.Integer/java.lang.Double\n(default)"
             , [TargetJava] )
+    , ( Option [] ["integerFloat"] (NoArg (\o -> o {javaTypeMapping = IntegerFloat}))
+                      "Built-in BNFC category Integer/Double maps \nto java.lang.Integer/java.lang.Float"
+                , [TargetJava] )
+    , ( Option [] ["longFloat"] (NoArg (\o -> o {javaTypeMapping = LongFloat}))
+                          "Built-in BNFC category Integer/Double maps \nto java.lang.Long/java.lang.Float"
+                    , [TargetJava] )
+    , ( Option [] ["longDouble"] (NoArg (\o -> o {javaTypeMapping = LongDouble}))
+                  "Built-in BNFC category Integer/Double maps \nto java.lang.Long/java.lang.Double"
+                        , [TargetJava] )
     , ( Option [] ["flexible"] (NoArg (\o -> o {javaTypeMapping = Flexible}))
-                  "Built-in BNFC category Integer/Double maps to \njava.math.BigInteger/java.math.BigDecimal"
+                  "Built-in BNFC category Integer/Double maps \nto java.math.BigInteger/java.math.BigDecimal"
                 , [TargetJava] )
   , ( Option [] ["vs"] (NoArg (\o -> o {visualStudio = True}))
           "Generate Visual Studio solution/project files"
