@@ -200,7 +200,7 @@ prRules packabs ((nt,(p, fun, a):ls):rs) =
     pr (k:ls) = unlines [alternative k] ++ pr ls
     antlrRuleLabel fnc
       | isNilFun fnc   = catid ++ "_Empty"
-      | isOneFun fnc   = catid ++ "_AppendLast"
-      | isConsFun fnc  = catid ++ "_PrependFirst"
+      | isOneFun fnc   = catid ++ "_One"
+      | isConsFun fnc  = catid ++ "_Cons"
       | isCoercion fnc = "Coercion_" ++ catid
       | otherwise      = getLabelName fnc

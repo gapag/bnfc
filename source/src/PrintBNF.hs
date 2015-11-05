@@ -111,6 +111,7 @@ instance Print Def where
     Entryp ids -> prPrec i 0 (concatD [doc (showString "entrypoints"), prt 0 ids])
     Separator minimumsize cat str -> prPrec i 0 (concatD [doc (showString "separator"), prt 0 minimumsize, prt 0 cat, prt 0 str])
     Terminator minimumsize cat str -> prPrec i 0 (concatD [doc (showString "terminator"), prt 0 minimumsize, prt 0 cat, prt 0 str])
+    Indented cats -> prPrec i 0 (concatD [doc (showString "indented"), prt 0 cats])
     Delimiters cat str1 str2 separation minimumsize -> prPrec i 0 (concatD [doc (showString "delimiters"), prt 0 cat, prt 0 str1, prt 0 str2, prt 0 separation, prt 0 minimumsize])
     Coercions id n -> prPrec i 0 (concatD [doc (showString "coercions"), prt 0 id, prt 0 n])
     Rules id rhss -> prPrec i 0 (concatD [doc (showString "rules"), prt 0 id, doc (showString "::="), prt 0 rhss])
@@ -131,7 +132,8 @@ instance Print Cat where
   prt i e = case e of
     ListCat cat -> prPrec i 0 (concatD [doc (showString "["), prt 0 cat, doc (showString "]")])
     IdCat id -> prPrec i 0 (concatD [prt 0 id])
-
+  prtList _ [x] = (concatD [prt 0 x])
+  prtList _ (x:xs) = (concatD [prt 0 x, doc (showString ","), prt 0 xs])
 instance Print Label where
   prt i e = case e of
     LabNoP labelid -> prPrec i 0 (concatD [prt 0 labelid])

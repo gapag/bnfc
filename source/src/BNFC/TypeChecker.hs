@@ -124,7 +124,7 @@ checkExp list ctx (App "(:)" [e,es]) (ListT t) =
     do  e'  <- checkExp list ctx e t
         es' <- checkExp list ctx es (ListT t)
         return $ App (cons list t) [e',es']
-checkExp _ _ (App "(:)" es) _   = fail $ "(:) takes 2 arguments, but has been given " ++ show (length es) ++ "."
+checkExp _ _ (App "(:)" es) _   = fail $ "(:popp) takes 2 arguments, but has been given " ++ show (length es) ++ "."
 checkExp list ctx e@(App x es) t =
     do  FunT ts t' <- lookupCtx x ctx
         es' <- matchArgs ts

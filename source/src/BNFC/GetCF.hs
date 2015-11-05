@@ -187,11 +187,20 @@ transDef x = case x of
  Abs.Comments str0 str         -> [Left $ CommentM (str0,str)]
  Abs.Token ident reg           -> [Left $ TokenReg (transIdent ident) False reg]
  Abs.PosToken ident reg        -> [Left $ TokenReg (transIdent ident) True reg]
- Abs.Entryp idents             -> [Left $ EntryPoints (map (strToCat .transIdent) idents)]
+ Abs.Entryp idents             ->
+                        [Left $ EntryPoints (map (strToCat .transIdent) idents)]
  Abs.Internal label cat items  ->
-   [Right $ Rule (transLabel label) (transCat cat) (Left InternalCat:concatMap transItem items)]
+   [Right $
+    Rule (transLabel label)
+        (transCat cat)
+        (Left InternalCat:concatMap transItem items)]
  Abs.Separator size ident str -> map  (Right . cf2cfpRule) $ separatorRules size ident str
  Abs.Terminator size ident str -> map  (Right . cf2cfpRule) $ terminatorRules size ident str
+ -- Indentation works similarly as termination. This was developed by abduction
+ -- from my ANTLR implemantation of layout syntax, and might be dead wrong.
+ Abs.Indented idents        ->
+    (map (Right . cf2cfpRule) $ foldl (++) [] [terminatorRules Abs.MEmpty ident "" | ident <- idents ])
+    ++ [Left $ LayoutCat (map (transCat) idents)]
  Abs.Delimiters a b c d e -> map  (Right . cf2cfpRule) $ delimiterRules a b c d e
  Abs.Coercions ident int -> map  (Right . cf2cfpRule) $ coercionRules ident int
  Abs.Rules ident strs -> map (Right . cf2cfpRule) $ ebnfRules ident strs
@@ -268,6 +277,9 @@ terminatorRules size c s = [
    ifEmpty = if size == Abs.MNonempty
                 then Rule "(:[])" cs (Left c' : if null s then [] else [Right s])
                 else Rule "[]" cs []
+
+-- indentationRules :: Abs.Cat -> [Rule]
+-- indentationRules ct = I suspect this should include all three Rule kinds (one, zero, cons).
 
 coercionRules :: Abs.Ident -> Integer -> [Rule]
 coercionRules (Abs.Ident c) n =

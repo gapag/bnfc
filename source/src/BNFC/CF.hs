@@ -204,6 +204,7 @@ data Pragma = CommentS  String -- ^ for single line comments
             | EntryPoints [Cat]
             | Layout [String]
             | LayoutStop [String]
+            | LayoutCat [Cat]
             | LayoutTop
             | FunDef String [String] Exp
             -- ...
@@ -217,6 +218,9 @@ tokenPragmas cf = [(TokenCat name,e) | TokenReg name _ e <- cfgPragmas cf]
 tokenNames :: CFG f -> [String]
 tokenNames cf = map (show.fst) (tokenPragmas cf)
 
+indentedCats :: CF -> [Cat]
+indentedCats cf = nub $ foldl (++) [] [lc | LayoutCat lc <- cfgPragmas cf]
+
 layoutPragmas :: CF -> (Bool,[String],[String])
 layoutPragmas cf = let ps = cfgPragmas cf in (
   not (null [() | LayoutTop  <- ps]),   -- if there's layout betw top-level
@@ -227,6 +231,9 @@ layoutPragmas cf = let ps = cfgPragmas cf in (
 hasLayout :: CF -> Bool
 hasLayout cf = case layoutPragmas cf of
   (t,ws,_) -> t || not (null ws)   -- (True,[],_) means: top-level layout only
+
+hasIndentation :: CF -> Bool
+hasIndentation = null . indentedCats
 
 -- | Literal: Char, String, Ident, Integer, Double
 type Literal = String
@@ -379,6 +386,7 @@ isNilFun f  = f == "[]"
 isOneFun f  = f == "(:[])"
 isConsFun f = f == "(:)"
 isConcatFun f = f == "(++)"
+
 ------------------------------------------------------------------------------
 type Name = String
 
@@ -557,8 +565,6 @@ specialData cf = [(c,[(show c,[TokenCat "String"])]) | c <- specialCats cf] wher
 isParsable :: Rul f -> Bool
 isParsable (Rule _ _ (Left c:_)) = c /= InternalCat
 isParsable _ = True
-
-
 
 -- | Checks if the list has a non-empty rule.
 hasOneFunc :: [Rule] -> Bool

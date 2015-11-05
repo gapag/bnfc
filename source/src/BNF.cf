@@ -66,6 +66,7 @@ Ints     . IntList ::= "[" [Integer] "]" ;
 separator Integer "," ;
 separator IntList "," ;
 terminator nonempty ProfItem "" ;
+separator nonempty Cat ",";
 
 -- Pragmas
 Comment  .  Def ::= "comment" String ;
@@ -76,6 +77,7 @@ PosToken.   Def ::= "position" "token" Ident Reg ;
 Entryp.     Def ::= "entrypoints" [Ident] ;
 Separator.  Def ::= "separator" MinimumSize Cat String ;
 Terminator. Def ::= "terminator" MinimumSize Cat String ;
+Indented  . Def ::= "indented" [Cat] ;
 Delimiters. Def ::= "delimiters" Cat String String Separation MinimumSize;
 Coercions.  Def ::= "coercions" Ident Integer ;
 Rules.      Def ::= "rules" Ident "::=" [RHS] ;

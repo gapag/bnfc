@@ -34,6 +34,7 @@ transDef x = case x of
   Entryp idents -> failure x
   Separator minimumsize cat string -> failure x
   Terminator minimumsize cat string -> failure x
+  Indented cats -> failure x
   Delimiters cat string1 string2 separation minimumsize -> failure x
   Coercions ident integer -> failure x
   Rules ident rhss -> failure x
