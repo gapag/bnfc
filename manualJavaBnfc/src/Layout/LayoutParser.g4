@@ -3,20 +3,23 @@ parser grammar LayoutParser;
 
 @parser::members {
 
-    boolean begin = true;
     LayoutLexer ll;
+// BELOW here : not needed
+    StringBuffer sb = new StringBuffer();
+    public static final String IND = "  ";
+    private void inc(){
+      sb.append(IND);
+    }
 
-    static boolean checkIndentation(Token spaces, String indentation){
-        /*if(spaces == null) return ll.indentation.length() == 0;
-        else return spaces.getText().substring(1).length() >= ll.indentation.length();*/
-        return true;
+    private void dec(){
+      sb.delete(0,IND.length());
     }
 
     private void pr(String s){
-      System.out.println(ll.indentation.toString()+s);
+      System.out.println(sb.toString()+s);
       System.out.flush();
     }
-
+// Until here
 }
 
 options {
@@ -24,32 +27,43 @@ options {
 }
 
 prog returns [ Layout.Absyn.Prog result ]
+// Initialization of field, if there is indentation
 @init{
   ll = (LayoutLexer)this.getInputStream().getTokenSource();
 }
+// Let's make it like that: if the entrypoint consists only of a list, it should NOT call the indented version.
 : p_1_1=listStm { $result = new Layout.Absyn.Program($p_1_1.result); } # Program
 ;
-stm returns [ Layout.Absyn.Stm result ] : {pr("ass");} p_1_1=IDENT {pr($p_1_1.getText());} Surrogate_id_SYMB_0  p_1_3=exp  { $result = new Layout.Absyn.Assign($p_1_1.getText(),$p_1_3.result); } # Assign
-  | {pr("if"); } Surrogate_id_SYMB_3  p_2_2=exp {pr("(if's condition)");} Surrogate_id_SYMB_1 {pr(":");} p_2_4=indentedListStm  { $result = new Layout.Absyn.If($p_2_2.result,$p_2_4.result); } # If
+stm returns [ Layout.Absyn.Stm result ] : {pr("ass");}
+   p_1_1=IDENT {pr($p_1_1.getText());} Surrogate_id_SYMB_0  p_1_3=exp  { $result = new Layout.Absyn.Assign($p_1_1.getText(),$p_1_3.result); } # Assign
+  | {pr("if"); } Surrogate_id_SYMB_3  {ll.ignoreIndentation();} p_2_2=listExp
+  {ll.resumeIndentation(); pr("(if's condition)");} Surrogate_id_SYMB_1 {pr(":");} p_2_4=indentedListStm  { $result = new Layout.Absyn.If($p_2_2.result,$p_2_4.result); } # If
 ;
+
 exp returns [ Layout.Absyn.Exp result ] : Surrogate_id_SYMB_2  { pr("true"); $result = new Layout.Absyn.True(); } # True
 ;
 
+listExp returns [ Layout.Absyn.ListExp result ] : p_1_1=exp  { $result = new Layout.Absyn.ListExp(); $result.addLast($p_1_1.result); } # ListExp_One
+  | p_2_1=exp Surrogate_id_SYMB_4 p_2_3=listExp  { $result = $p_2_3.result; $result.addFirst($p_2_1.result); } # ListExp_Cons
+;
+
+// Precondition : there is a
+//  indentation Stm;
+// in the generating file, therefore all instances of Indentation are indented.
+// Note that this is the real reason why you could not write #one and #cons below... you
+// enforce non-empty lists up here!
+// Note that this two-rule mechanism is necessary in the case a list of Stm is an entrypoint.
+/* You create this thing below IF there is indentation Stm */
 indentedListStm returns [Layout.Absyn.ListStm result]:
-      INDENTATION_INCREASED { ll.increaseIndentation(); pr("Indented list"); } p_2_1=stm
+      INDENTATION_INCREASED { inc();} p_2_1=stm
       p_2_2=listStm { $result = $p_2_2.result;
                       $result.addFirst($p_2_1.result); }
-      INDENTATION_DECREASED{ll.decreaseIndentation();}# Indented_List;
+      INDENTATION_DECREASED{ dec(); }# Indented_List;
 
 listStm returns [ Layout.Absyn.ListStm result ]:
 
-    INDENTATION p_2_1=stm
-    p_2_2=listStm {pr("First");  $result = $p_2_2.result;
+    INDENTATION /* The previous token exists only if there is indentation Stm */ p_2_1=stm
+    p_2_2=listStm { $result = $p_2_2.result;
                     $result.addFirst($p_2_1.result); } # ListStm_PrependFirst // This is CONS (:)
-   /*|
-     INDENTATION p_1_1=stm  { pr("Last");
-    $result = new Layout.Absyn.ListStm();
-    $result.addLast($p_1_1.result);
-    } # ListStm_AppendLast*/
-   | {pr("Empty");$result = new Layout.Absyn.ListStm();} # ListStm_Empty // This is NIL ([])
+   | {$result = new Layout.Absyn.ListStm();} # ListStm_Empty // This is NIL ([])
 ;
