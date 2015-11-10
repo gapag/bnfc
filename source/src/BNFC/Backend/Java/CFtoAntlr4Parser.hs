@@ -40,16 +40,22 @@
 module BNFC.Backend.Java.CFtoAntlr4Parser ( cf2AntlrParse ) where
 
 import Data.List
+import Text.PrettyPrint
 import BNFC.CF
 import BNFC.Backend.Java.Utils
 import BNFC.Backend.Common.NamedVariables
 import BNFC.Utils ( (+++), (+.+))
+import BNFC.PrettyPrint
 
 -- Type declarations
 type Rules       = [(NonTerminal,[(Pattern, Fun, Action)])]
 type Pattern     = String
 type Action      = String
 type MetaVar     = (String, Cat)
+
+data AntlrParserSpec = AP {
+
+    }
 
 -- | Creates the ANTLR parser grammar for this CF.
 --The environment comes from CFtoAntlr4Lexer
@@ -78,6 +84,12 @@ rulesForAntlr4 tm packageAbsyn cf env = map mkOne getrules
     getrules          = ruleGroups cf
     mkOne (cat,rules) = constructRule tm packageAbsyn cf env rules cat
 
+
+javaParserPreamble lang = vcat [
+        "@parser::members"
+        , codeblock 2 [ lang<>"Lexer ll"]
+    ]
+
 -- | For every non-terminal, we construct a set of rules. A rule is a sequence of
 -- terminals and non-terminals, and an action to be performed.
 constructRule :: TypeMapping
@@ -99,6 +111,9 @@ constructRule tm packageAbsyn cf env rules nt =
    revM True  = reverse
    revs       = cfgReversibleCats cf
 
+
+
+
 -- Generates a string containing the semantic action.
 generateAction :: TypeMapping -> String -> NonTerminal -> Fun -> [MetaVar]
                -> Bool   -- ^ Whether the list should be reversed or not.
@@ -111,11 +126,12 @@ generateAction tm packageAbsyn nt f ms rev
     | isConsFun f = "$result = " ++ p_2 ++ "; "
                            ++ "$result." ++ add ++ "(" ++ p_1 ++ ");"
     | isCoercion f = "$result = " ++  p_1 ++ ";"
-    | isDefinedRule f = "$result = parser." ++ f ++ "_"
+    | isDefinedRule f = "$result = this." ++ f ++ "_"
                         ++ "(" ++ intercalate "," (map resultvalue ms) ++ ");"
     | otherwise = "$result = new " ++ c
                   ++ "(" ++ intercalate "," (map resultvalue ms) ++ ");"
    where
+
      c                 = packageAbsyn ++ "." ++
                             if isNilFun f || isOneFun f || isConsFun f
                             then identCat (normCat nt) else f
@@ -133,6 +149,7 @@ generateAction tm packageAbsyn nt f ms rev
                           TokenCat "Double"  -> newInstance "Double" $ n'+.+gettext
                           TokenCat "String"  -> n'+.+gettext+.+removeQuotes n'
                           _         -> (+.+) n' (if isTokenCat c then gettext else "result")
+
                           where n' = '$':n
 
 -- | Generate patterns and a set of metavariables indicating

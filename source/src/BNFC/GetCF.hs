@@ -115,6 +115,9 @@ getCFP cnf (Abs.Grammar defs0) = do
                                                      Left (Cat lit) <- xs,
                                                      lit `elem` specialCatsP]
                   (symbols,keywords) = partition notIdent reservedWords
+                  -- this determines whether a token in quotes in the grammar is
+                  -- to be considered a symbol
+                  -- or a keyword.
                   notIdent s         = null s || not (isAlpha (head s)) || any (not . isIdentRest) s
                   isIdentRest c      = isAlphaNum c || c == '_' || c == '\''
                   reservedWords      = nub [t | r <- rules, Right t <- rhsRule r]
@@ -199,7 +202,8 @@ transDef x = case x of
  -- Indentation works similarly as termination. This was developed by abduction
  -- from my ANTLR implemantation of layout syntax, and might be dead wrong.
  Abs.Indented idents        ->
-    (map (Right . cf2cfpRule) $ foldl (++) [] [terminatorRules Abs.MEmpty ident "" | ident <- idents ])
+    (map (Right . cf2cfpRule) $ foldl (++) [] [
+        terminatorRules Abs.MEmpty ident "" | ident <- idents ])
     ++ [Left $ LayoutCat (map (transCat) idents)]
  Abs.Delimiters a b c d e -> map  (Right . cf2cfpRule) $ delimiterRules a b c d e
  Abs.Coercions ident int -> map  (Right . cf2cfpRule) $ coercionRules ident int
@@ -268,9 +272,11 @@ separatorRules size c s = if null s then terminatorRules size c s else ifEmpty [
 terminatorRules :: Abs.MinimumSize -> Abs.Cat -> String -> [Rule]
 terminatorRules size c s = [
   ifEmpty,
-  Rule "(:)" cs (Left c' : s' [Left cs])
+  Rule "(:)" cs ( Left c' : s' [Left cs])
   ]
  where
+   --indent = Right "Surrogate_id_SYMB_" -- TODO : Only way here is to NOT make catIndentation a TokenCat but similar to an user-defined
+   -- token.
    c' = transCat c
    cs = ListCat c'
    s' its = if null s then its else Right s : its

@@ -42,6 +42,32 @@ import Text.PrettyPrint
 import BNFC.CF
 import BNFC.Backend.Java.RegToAntlrLexer
 import BNFC.Backend.Common.NamedVariables
+import BNFC.PrettyPrint
+
+data ANTLRLexerSpec = AL{
+        preamble         :: Doc,
+        javaCode         :: Doc,
+        fragments        :: Doc,
+        defaultMode      :: Doc,
+        indentedMode     :: Doc,
+        errorToken       :: Doc,
+        builtinTypeModes :: Doc
+    }
+
+makeLexer :: ANTLRLexerSpec -> Doc
+makeLexer AL{..} =
+    vcat [
+        preamble
+        , javaCode
+        , fragments
+        , defaultMode
+        , indentedMode
+        , errorToken
+        , builtinTypeModes
+        ]
+
+
+-- antlr@AL{..}
 
 -- | Creates a lexer grammar.
 -- Since antlr token identifiers must start with an uppercase symbol,
@@ -50,19 +76,64 @@ import BNFC.Backend.Common.NamedVariables
 -- user defined tokens. This is not handled.
 -- returns the environment because the parser uses it.
 cf2AntlrLex :: String -> CF -> (Doc, SymEnv)
-cf2AntlrLex packageBase cf = (vcat
-    [ prelude packageBase
-    , cMacros
-    -- unnamed symbols (those in quotes, not in token definitions)
-    , lexSymbols env
-    , restOfLexerGrammar cf
-    ], env)
+cf2AntlrLex packageBase cf = (makeLexer al, env)
   where
-    env                    = makeSymEnv (cfgSymbols cf ++ reservedWords cf)
-        (0 :: Int)
-    makeSymEnv [] _        = []
-    makeSymEnv (s:symbs) n = (s, "Surrogate_id_SYMB_" ++ show n)
-        : makeSymEnv symbs (n+1)
+    (al, mode) = if hasIndentation cf
+                  then (alIndent, "INDENT" )
+                  else (alNoIndent,"DEFAULT_MODE")
+    alNoIndent = AL{
+        preamble           = prelude packageBase
+        , javaCode         = text ""
+        , fragments        = vcat [
+                               tokenFragments
+                               , fragIdent
+                               , whiteFragment
+                             ]
+        , defaultMode      = vcat $ whiteToken:defaultElements
+        , indentedMode     = text ""
+        , errorToken       = text "ErrorToken : . ;"
+        , builtinTypeModes = vcat [ defString
+                            , defChar
+                            ]
+        }
+    alIndent   = alNoIndent{
+        javaCode     = javaLexerPreamble,
+        defaultMode  = indentationMode,
+        indentedMode = vcat $  "mode INDENT;":(newlineToken:defaultElements)
+    }
+    uses cat = isUsedCat cf cat
+    defaultElements = [ lexSymbols env
+                      , lexComments (comments cf)
+                      , userDefinedTokens cf
+                      , defIdent
+                      , tokenDouble
+                      , tokenInteger
+                      , initString
+                      , initChar
+                      ]
+    conditionalDef defaultValue cat definition
+                            = if uses cat
+                                then definition
+                                else defaultValue
+    conditionalComplex = conditionalDef ("","")
+    conditionalSimple = conditionalDef ""
+    (fragIdent, defIdent)   =
+        conditionalComplex catIdent identAntlrDefinition
+    (initString, defString) =
+        conditionalComplex catString $ stringAntlrDefinition mode
+    (initChar, defChar)     =
+        conditionalComplex catChar $ charAntlrDefinition mode
+    tokenDouble             =
+        conditionalSimple catDouble doubleAntlrDefinition
+    tokenInteger            =
+        conditionalSimple catInteger integerAntlrDefinition
+    env                     = --TODO HERE INSERT THE INDENTATION TOKENS!!!
+                    makeSymEnv (cfgSymbols cf ++ reservedWords cf) (0 :: Int)
+    makeSymEnv [] _         = []
+    makeSymEnv (s:symbs) n  =
+        (s, "Surrogate_id_SYMB_" ++ show n): makeSymEnv symbs (n+1)
+
+    -- Take the longest
 
 
 -- | File prelude
@@ -74,15 +145,19 @@ prelude packageBase = vcat
 
 --For now all categories are included.
 --Optimally only the ones that are used should be generated.
-cMacros :: Doc
-cMacros = vcat
+tokenFragments :: Doc
+tokenFragments = vcat
     [ "// Predefined regular expressions in BNFC"
-    , frg "LETTER  : CAPITAL | SMALL"
-    , frg "CAPITAL : [A-Z\\u00C0-\\u00D6\\u00D8-\\u00DE]"
-    , frg "SMALL   : [a-z\\u00DF-\\u00F6\\u00F8-\\u00FF]"
-    , frg "DIGIT   : [0-9]"
+    , fragment "LETTER  : CAPITAL | SMALL"
+    , fragment "CAPITAL : [A-Z\\u00C0-\\u00D6\\u00D8-\\u00DE]"
+    , fragment "SMALL   : [a-z\\u00DF-\\u00F6\\u00F8-\\u00FF]"
+    , fragment "DIGIT   : [0-9]"
+    , "// Escapable sequences"
+    , fragment "Escapable : ('\"' | '\\\\' | 'n' | 't' | 'r')"
     ]
-  where frg a = "fragment" <+> a <+> ";"
+
+fragment :: Doc -> Doc
+fragment a = "fragment" <+> a <+> ";"
 
 escapeChars :: String -> String
 escapeChars = concatMap escapeChar
@@ -101,63 +176,85 @@ lexSymbols ss = vcat $  map transSym ss
   where
     transSym (s,r) = text r <>  " : '" <> text (escapeChars s) <> "' ;"
 
--- | Writes rules for user defined tokens, and, if used, the predefined BNFC tokens.
-restOfLexerGrammar :: CF -> Doc
-restOfLexerGrammar cf = vcat
-    [ lexComments (comments cf)
-    , ""
-    , userDefTokens
-    , ifString strdec
-    , ifChar chardec
-    , ifC catDouble [
-        "// Double predefined token type",
-        "DOUBLE : DIGIT+ '.' DIGIT+ ('e' '-'? DIGIT+)?;"
-        ]
-    , ifC catInteger [
-        "//Integer predefined token type",
-        "INTEGER : DIGIT+;"
-        ]
-    , ifC catIdent [
-        "// Identifier token type" ,
-        "fragment" ,
-        "IDENTIFIER_FIRST : LETTER | '_';",
-        "IDENT : IDENTIFIER_FIRST (IDENTIFIER_FIRST | DIGIT)*;"
-        ]
-    , "// Whitespace"
-    , "WS : (' ' | '\\r' | '\\t' | '\\n')+ ->  skip;"
-    , "// Escapable sequences"
-    , "fragment"
-    , "Escapable : ('\"' | '\\\\' | 'n' | 't' | 'r');"
-    , "ErrorToken : . ;"
-    , ifString stringmodes
-    , ifChar charmodes
+userDefinedTokens :: CF -> Doc
+userDefinedTokens cf = vcat
+    [ text (show name) <>" : " <> text (printRegJLex exp) <> ";"
+    | (name, exp) <- tokenPragmas cf ]
+
+type TypeToken    = Doc
+type InitToken    = Doc
+type AntlrModeDef = Doc
+type Fragment     = Doc
+
+identAntlrDefinition :: (Fragment, TypeToken)
+identAntlrDefinition = (identFragment, identToken)
+
+identFragment :: Fragment
+identFragment = fragment "IDENTIFIER_FIRST : LETTER | '_'"
+
+identToken :: TypeToken
+identToken = "IDENT : IDENTIFIER_FIRST (IDENTIFIER_FIRST | DIGIT)*;"
+
+whiteFragment :: Fragment
+whiteFragment = fragment "White : (' ' | '\\r' | '\\t' )"
+
+newlineToken :: TypeToken
+newlineToken = vcat ["NEWLINE : '\\r'? '\\n'  -> skip, mode(DEFAULT_MODE);"
+                , "WS : White+ -> skip;"]
+
+whiteToken :: TypeToken
+whiteToken = "WS : (White | '\\n')+ ->  skip;"
+
+doubleAntlrDefinition, integerAntlrDefinition :: TypeToken
+integerAntlrDefinition = vcat [ "//Integer predefined token type"
+                         , "INTEGER : DIGIT+;"
+                         ]
+doubleAntlrDefinition =  vcat ["// Double predefined token type"
+                            , "DOUBLE : DIGIT+ '.' DIGIT+ ('e' '-'? DIGIT+)?;"
+                         ]
+
+stringAntlrDefinition, charAntlrDefinition :: Doc -> (InitToken, AntlrModeDef)
+stringAntlrDefinition mode = (stringInitToken, stringModes mode)
+charAntlrDefinition mode = (charInitToken, charModes mode)
+
+charInitToken   = "CHAR : '\\''   -> more, mode(CHARMODE);"
+
+stringInitToken = vcat [ "// String token type"
+                  , "STRING : '\"' -> more, mode(STRINGMODE);"
+                  ]
+
+indentationMode :: AntlrModeDef
+indentationMode = vcat [
+      "INDENTATION : "
+    , "  White*{getText().length() == indentation.length()}?"
+    , "  -> mode(INDENT);"
+    , "INDENTATION_INCREASED :"
+    , "  White*{getText().length() > indentation.length()}?"
+    , "  {increaseIndentation(getText());}"
+    , "  -> mode(INDENT);"
+    , "INDENTATION_DECREASED :"
+    , "  White*{getText().length() < indentation.length()}?"
+    , "  {decreaseIndentation();}"
+    , "  -> mode(INDENT);"
     ]
-  where
-    ifC cat s     = if isUsedCat cf cat then vcat s else ""
-    ifString      = ifC catString
-    ifChar        = ifC catChar
-    strdec        = [ "// String token type"
-                    , "STRING : '\"' -> more, mode(STRINGMODE);"
-                    ]
-    chardec       = ["CHAR : '\\''   -> more, mode(CHARMODE);"]
-    userDefTokens = vcat
-        [ text (show name) <>" : " <> text (printRegJLex exp) <> ";"
-        | (name, exp) <- tokenPragmas cf ]
-    stringmodes   = [ "mode STRESCAPE;"
-        , "STRESCAPED : Escapable  -> more, popMode ;"
-        , "mode STRINGMODE;"
-        , "STRINGESC : '\\\\' -> more , pushMode(STRESCAPE);"
-        , "STRINGEND : '\"' ->  type(STRING), mode(DEFAULT_MODE);"
-        , "STRINGTEXT : ~[\\\"\\\\] -> more;"
-        ]
-    charmodes     = [ "mode CHARMODE;"
-        , "CHARANY     :  ~[\\'\\\\] -> more, mode(CHAREND);"
-        , "CHARESC     :  '\\\\'  -> more, pushMode(CHAREND),pushMode(ESCAPE);"
-        , "mode ESCAPE;"
-        , "ESCAPED : (Escapable | '\\'')  -> more, popMode ;"
-        , "mode CHAREND;"
-        , "CHARENDC     :  '\\''  -> type(CHAR), mode(DEFAULT_MODE);"
-        ]
+
+stringModes, charModes :: Doc -> AntlrModeDef
+stringModes modeName = vcat [ "mode STRESCAPE;"
+    , "STRESCAPED : Escapable  -> more, popMode ;"
+    , "mode STRINGMODE;"
+    , "STRINGESC : '\\\\' -> more , pushMode(STRESCAPE);"
+    , "STRINGEND : '\"' ->  type(STRING), mode("<>modeName<>");"
+    , "STRINGTEXT : ~[\\\"\\\\] -> more;"
+    ]
+
+charModes modeName = vcat [ "mode CHARMODE;"
+    , "CHARANY     :  ~[\\'\\\\] -> more, mode(CHAREND);"
+    , "CHARESC     :  '\\\\'  -> more, pushMode(CHAREND),pushMode(ESCAPE);"
+    , "mode ESCAPE;"
+    , "ESCAPED : (Escapable | '\\'')  -> more, popMode ;"
+    , "mode CHAREND;"
+    , "CHARENDC     :  '\\''  -> type(CHAR), mode("<>modeName<>");"
+    ]
 
 lexComments :: ([(String, String)], [String]) -> Doc
 lexComments ([],[]) = ""
@@ -196,3 +293,81 @@ lexMultiComment (b,e) =
          "'" <> text (escapeChars b)
         <>"' (.)*? '"<> text (escapeChars e)
         <> "'"
+
+javaLexerPreamble =
+    vcat [ "@lexer::members"
+        , codeblock 2 [
+            "public StringBuffer indentation = new StringBuffer();"
+            , "private final java.util.Deque<Integer> nestingDiffs = initNestingDiffs();"
+            , "private final java.util.Deque<Boolean> ignoringIndentation = initIgnoringIndentation();"
+            , "private final java.util.Deque<Token> pendingTokens  = initPendingTokens();"
+            , "public void increaseIndentation(String d)"
+            , codeblock 2 [ "if(isIgnoringIndentation()) return;"
+                , "nestingDiffs.push(d.length() - nestingDiffs.peekFirst());"
+                , "indentation.append(d.substring(0,nestingDiffs.peekFirst()));"
+                ]
+            , "public void decreaseIndentation()"
+            , codeblock 2 [
+                "if(isIgnoringIndentation()) return;"
+                , "indentation = indentation.delete(0, nestingDiffs.pop());"
+            ]
+            , "public final java.util.Deque<Integer> initNestingDiffs()"
+            , codeblock 2 [
+                            "java.util.ArrayDeque<Integer> dq = new java.util.ArrayDeque<Integer>();"
+                            , "dq.push(0);"
+                            , "return dq;"
+                        ]
+            , "public final java.util.Deque<Token> initPendingTokens()"
+            , codeblock 2 [
+                "java.util.ArrayDeque<Token> dq = new java.util.ArrayDeque<Token>();"
+                , "return dq;"
+            ]
+            , "public final java.util.Deque<Boolean> initIgnoringIndentation()"
+            , codeblock 2 [
+                "java.util.ArrayDeque<Boolean> dq = new java.util.ArrayDeque<Boolean>();"
+                , "dq.push(false);"
+                , "return dq;"
+            ]
+            , "public void ignoreIndentation()"
+            , codeblock 2 ["ignoringIndentation.push(true);"]
+            , "public void expectIndentation()"
+            , codeblock 2 ["ignoringIndentation.push(false);"]
+            , "public boolean isIgnoringIndentation()"
+            , codeblock 2 ["return ignoringIndentation.peek();"]
+            , "public boolean resumeIndentation()"
+            , codeblock 2 ["return ignoringIndentation.pop();"]
+            , "@Override"
+            , "public Token nextToken()"
+            , codeblock 2 [ "if(isIgnoringIndentation())"
+                    , codeblock 2 ["return getNextTokenIgnoringIndentation();"]
+                    , "else"
+                    , codeblock 2 ["return getNextToken();"]
+                ]
+            , "private Token getNextToken()"
+            , codeblock 2 [ "if(pendingTokens.size()>0)"
+		, codeblock 2 [ "return pendingTokens.pop();"]
+                , "else"
+                , codeblock 2 [ "Token t = super.nextToken();"
+                    , "if(t.getType() == INDENTATION_DECREASED)"
+                    , codeblock 2 [
+                        "pendingTokens.add(this._factory.create(INDENTATION,indentation.toString()));"
+                    ]
+                    , "return t;"
+                ]
+            ]
+            , "private Token getNextTokenIgnoringIndentation()"
+            , codeblock 2 [ "Token t = null;"
+                , "do"
+                , codeblock 2 ["t = getNextToken();"]
+                , "while(isIndentation(t));"
+                , "return t;"
+            ]
+            , "private final boolean isIndentation(Token t)"
+            , codeblock 2 [ "return t.getType() == INDENTATION_DECREASED"
+                , "|| t.getType() == INDENTATION"
+                , "|| t.getType() == INDENTATION_INCREASED;"
+            ]
+
+        ]
+    ]
+

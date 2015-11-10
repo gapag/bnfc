@@ -92,6 +92,8 @@ module BNFC.CF (
             isPositionCat,
             hasIdent,
             hasLayout,
+            hasIndentation,
+            isIndentedCat,
             layoutPragmas,
             normFun,
 
@@ -125,6 +127,8 @@ type CF = CFG Fun
 -- function_name . Main_Cat ::= sequence
 type Rule = Rul Fun
 
+
+
 -- | Polymorphic rule type for common type signatures for CF and CFP
 data Rul function = Rule { funRule :: function
                            -- ^ The function (semantic action) of a
@@ -154,6 +158,7 @@ data CFG function = CFG
     , cfgReversibleCats :: [Cat]      -- ^ categories that is left-recursive
                                       -- transformable.
     , cfgRules          :: [Rul function]
+    -- , cfgIndentationPlaceholders :: [IndentationPlaceholder]
     } deriving (Functor)
 
 
@@ -221,6 +226,9 @@ tokenNames cf = map (show.fst) (tokenPragmas cf)
 indentedCats :: CF -> [Cat]
 indentedCats cf = nub $ foldl (++) [] [lc | LayoutCat lc <- cfgPragmas cf]
 
+isIndentedCat :: CF -> Cat -> Bool
+isIndentedCat cf cat = cat `elem` (indentedCats cf)
+
 layoutPragmas :: CF -> (Bool,[String],[String])
 layoutPragmas cf = let ps = cfgPragmas cf in (
   not (null [() | LayoutTop  <- ps]),   -- if there's layout betw top-level
@@ -233,12 +241,13 @@ hasLayout cf = case layoutPragmas cf of
   (t,ws,_) -> t || not (null ws)   -- (True,[],_) means: top-level layout only
 
 hasIndentation :: CF -> Bool
-hasIndentation = null . indentedCats
+hasIndentation = not . null . indentedCats
 
 -- | Literal: Char, String, Ident, Integer, Double
-type Literal = String
-type Symbol  = String
-type KeyWord = String
+type Literal                = String
+type Symbol                 = String
+type KeyWord                = String
+type IndentationPlaceholder = String
 
 ------------------------------------------------------------------------------
 -- Categories
@@ -287,12 +296,13 @@ strToCat s =
         cat2cat (AbsBNF.ListCat c) = ListCat (cat2cat c)
 
 -- Build-in categories contants
-catString, catInteger, catDouble, catChar, catIdent :: Cat
+catString, catInteger, catDouble, catChar, catIdent:: Cat
 catString  = TokenCat "String"
 catInteger = TokenCat "Integer"
 catDouble  = TokenCat "Double"
 catChar    = TokenCat "Char"
 catIdent   = TokenCat "Ident"
+
 
 -- the parser needs these
 specialCatsP :: [String]
@@ -558,8 +568,6 @@ specialData cf = [(c,[(show c,[TokenCat "String"])]) | c <- specialCats cf] wher
 -- to deal with coercions
 
 -- the Haskell convention: the wildcard _ is not a constructor
-
-
 
 -- | Checks if the rule is parsable.
 isParsable :: Rul f -> Bool
