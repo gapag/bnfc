@@ -23,6 +23,10 @@ module BNFC.CF (
             CF,
             CFG(..),
             Rule, Rul(..), lookupRule,
+            RhsRule,
+            RhsRuleElement(..),
+            nonTerminals,
+            applyOnNonTerminal,
             Pragma(..),
             Exp(..),
             Literal,
@@ -65,6 +69,7 @@ module BNFC.CF (
 --          notUniqueFuns,   -- Returns a list of function labels that are not unique.
 --            badInheritence, -- Returns a list of all function labels that can cause problems in languages with inheritence.
             isList,         -- Checks if a category is a list category.
+            isIndentationEnter, -- Checks if a category is an indentation category.
             isTokenCat,
             sameCat,
             -- Information functions for list functions.
@@ -81,6 +86,7 @@ module BNFC.CF (
             isDataCat,
             normCatOfList,  -- Removes precendence information and enclosed List. C1 => C, C2 => C
             catOfList,
+            catOfIndentedList,
             comments,       -- translates the pragmas into two list containing the s./m. comments
             tokenPragmas,   -- get the user-defined regular expression tokens
             tokenNames,     -- get the names of all user-defined tokens
@@ -127,7 +133,26 @@ type CF = CFG Fun
 -- function_name . Main_Cat ::= sequence
 type Rule = Rul Fun
 
+type RhsRule = [RhsRuleElement Cat String]
+data RhsRuleElement a b = NonTerminal a
+    | AnonymousTerminal b
+    | IndentationTerminal b
+    deriving (Eq, Show, Ord)
 
+showRhsRuleElement :: RhsRuleElement Cat String -> String
+showRhsRuleElement (NonTerminal a) = show a
+showRhsRuleElement (IndentationTerminal a) = a
+showRhsRuleElement (AnonymousTerminal a) = a
+
+nonTerminals :: [RhsRuleElement a b] -> [a]
+nonTerminals [] = []
+nonTerminals ((NonTerminal x):rhs) = [x] ++ nonTerminals rhs
+nonTerminals (_:rhs) = nonTerminals rhs
+
+applyOnNonTerminal :: (a -> b) -> (RhsRuleElement a c) -> (RhsRuleElement b c)
+applyOnNonTerminal fun (NonTerminal n) = NonTerminal (fun n)
+applyOnNonTerminal _ (AnonymousTerminal n) = AnonymousTerminal n
+applyOnNonTerminal _ (IndentationTerminal n) = IndentationTerminal n
 
 -- | Polymorphic rule type for common type signatures for CF and CFP
 data Rul function = Rule { funRule :: function
@@ -136,7 +161,7 @@ data Rul function = Rule { funRule :: function
                            -- data types this must be a constructor
                            -- (or an identity function).
                          , valCat :: Cat -- ^ The value category
-                         , rhsRule :: [Either Cat String]
+                         , rhsRule :: RhsRule
                            -- ^ The list of Terminals/NonTerminals in
                            -- the right-hand-side of a rule.
                          }
@@ -144,7 +169,7 @@ data Rul function = Rule { funRule :: function
 
 instance (Show function) => Show (Rul function) where
   show (Rule f cat rhs) =
-      unwords (show f : "." : show cat : "::=" : map (either show id) rhs)
+      unwords (show f : "." : show cat : "::=" : map showRhsRuleElement rhs)
 
 -- | Polymorphic CFG type for common type signatures for CF and CFP
 data CFG function = CFG
@@ -158,7 +183,7 @@ data CFG function = CFG
     , cfgReversibleCats :: [Cat]      -- ^ categories that is left-recursive
                                       -- transformable.
     , cfgRules          :: [Rul function]
-    -- , cfgIndentationPlaceholders :: [IndentationPlaceholder]
+--    , cfgIndentationPlaceholders :: [IndentationPlaceholder]
     } deriving (Functor)
 
 
@@ -261,6 +286,7 @@ data Cat = InternalCat       -- | Internal category, inserted in 1st
          | Cat String
          | TokenCat String   -- ^ Token types (like Ident)
          | ListCat Cat
+         | IndentationEnterCat Cat
          | CoercCat String Integer
   deriving (Eq, Ord)
 
@@ -272,6 +298,7 @@ catToStr InternalCat = "#"
 catToStr (Cat s) = s
 catToStr (TokenCat s) = s
 catToStr (ListCat c) = "[" ++ show c ++ "]"
+catToStr (IndentationEnterCat c) = "[\\I" ++ show c ++ "]"
 catToStr (CoercCat s i) = s ++ show i
 
 instance Show Cat where
@@ -316,6 +343,8 @@ isDataOrListCat :: Cat -> Bool
 isDataOrListCat (CoercCat _ _)  = False
 isDataOrListCat (Cat ('@':_))   = False
 isDataOrListCat (ListCat c)     = isDataOrListCat c
+isDataOrListCat
+    (IndentationEnterCat c)     = isDataOrListCat c
 isDataOrListCat _               = True
 
 -- | Categories C1, C2,... (one digit in end) are variants of C. This function
@@ -334,6 +363,7 @@ sameCat c1 c2 = c1 == c2
 -- | Removes precendence information. C1 => C, [C2] => [C]
 normCat :: Cat -> Cat
 normCat (ListCat c) = ListCat (normCat c)
+normCat (IndentationEnterCat c) = IndentationEnterCat (normCat c)
 normCat (CoercCat c _) = Cat c
 normCat c = c
 
@@ -345,11 +375,16 @@ normCatOfList = normCat . catOfList
 -- Latex)
 identCat :: Cat -> String
 identCat (ListCat c) = "List" ++ identCat c
+identCat (IndentationEnterCat c) = "Indentation" ++ identCat c
 identCat c = show c
 
 isList :: Cat -> Bool
 isList (ListCat _) = True
 isList _           = False
+
+isIndentationEnter :: Cat -> Bool
+isIndentationEnter (IndentationEnterCat _) = True
+isIndentationEnter _                       = False
 
 isTokenCat :: Cat -> Bool
 isTokenCat (TokenCat _) = True
@@ -360,6 +395,10 @@ isTokenCat _            = False
 catOfList :: Cat -> Cat
 catOfList (ListCat c) = c
 catOfList c = c
+
+catOfIndentedList :: Cat -> Cat
+catOfIndentedList (IndentationEnterCat c) = c
+catOfIndentedList c = c
 ------------------------------------------------------------------------------
 -- Functions
 ------------------------------------------------------------------------------
@@ -430,7 +469,7 @@ commentPragmas = filter isComment
        isComment (CommentM _) = True
        isComment _            = False
 
-lookupRule :: Eq f => f -> [Rul f] -> Maybe (Cat, [Either Cat String])
+lookupRule :: Eq f => f -> [Rul f] -> Maybe (Cat, RhsRule)
 lookupRule f = lookup f . map unRule
   where unRule (Rule f' c rhs) = (f',(c,rhs))
 
@@ -463,7 +502,7 @@ allCatsNorm = nub . map normCat . allCats
 
 -- | Is the category is used on an rhs?
 isUsedCat :: CFG f -> Cat -> Bool
-isUsedCat cf cat = cat `elem` [c | r <- cfgRules cf, Left c <- rhsRule r]
+isUsedCat cf cat = cat `elem` [c | r <- cfgRules cf, NonTerminal c <- rhsRule r]
 
 -- | Group all categories with their rules.
 ruleGroups :: CF -> [(Cat,[Rule])]
@@ -537,7 +576,7 @@ getAbstractSyntax cf = [ ( c, nub (constructors c) ) | c <- allCatsNorm cf ]
         guard $ not (isDefinedRule f)
         guard $ not (isCoercion f)
         guard $ normCat (valCat rule) == cat
-        let cs = [normCat c | Left c <- rhsRule rule, c /= InternalCat]
+        let cs = [normCat c | NonTerminal c <- rhsRule rule, c /= InternalCat]
         return (f, cs)
 
 
@@ -553,7 +592,7 @@ cf2data' predicate cf =
                               not (isCoercion f), sameCat cat (valCat r)]))
       | cat <- filter predicate (allCats cf)]
  where
-  mkData (Rule f _ its) = (f,[normCat c | Left c <- its, c /= InternalCat])
+  mkData (Rule f _ its) = (f,[normCat c | NonTerminal c <- its, c /= InternalCat])
 
 cf2data :: CF -> [Data]
 cf2data = cf2data' isDataCat
@@ -571,7 +610,7 @@ specialData cf = [(c,[(show c,[TokenCat "String"])]) | c <- specialCats cf] wher
 
 -- | Checks if the rule is parsable.
 isParsable :: Rul f -> Bool
-isParsable (Rule _ _ (Left c:_)) = c /= InternalCat
+isParsable (Rule _ _ (NonTerminal c:_)) = c /= InternalCat
 isParsable _ = True
 
 -- | Checks if the list has a non-empty rule.
@@ -586,8 +625,9 @@ getCons rs = case find (isConsFun . funRule) rs of
                                   ++ intercalate ", " (map (show . funRule) rs)
   where
     seper [] = []
-    seper (Right x:_) = x
-    seper (Left _:xs) = seper xs
+    seper (AnonymousTerminal x:_) = x
+    seper (IndentationTerminal x:_) = x
+    seper (NonTerminal _:xs) = seper xs
 
 -- | Helper function that gets the list separator by precedence level
 getSeparatorByPrecedence :: [Rule] -> [(Integer,String)]
@@ -599,9 +639,9 @@ getSeparatorByPrecedence rules = [ (p, getCons (getRulesFor p)) | p <- precedenc
 isEmptyListCat :: CF -> Cat -> Bool
 isEmptyListCat cf c = elem "[]" $ map funRule $ rulesForCat' cf c
 
-isNonterm :: Either Cat String -> Bool
-isNonterm (Left _) = True
-isNonterm (Right _) = False
+isNonterm :: RhsRuleElement Cat String -> Bool
+isNonterm (NonTerminal _) = True
+isNonterm _ = False
 
 -- used in Happy to parse lists of form 'C t [C]' in reverse order
 -- applies only if the [] rule has no terminals
@@ -664,8 +704,8 @@ cf2cfpRule (Rule f c its)  = Rule (f, (f, trivialProf its)) c its
 cfp2cf :: CFP -> CF
 cfp2cf = fmap fst
 
-trivialProf :: [Either Cat String] -> [([[Int]],[Int])]
-trivialProf its = [([],[i]) | (i,_) <- zip [0..] [c | Left c <- its]]
+trivialProf :: RhsRule -> [([[Int]],[Int])]
+trivialProf its = [([],[i]) | (i,_) <- zip [0..] [c | NonTerminal c <- its]]
 
 {-# DEPRECATED allCatsP, allEntryPointsP  "Use the version without P postfix instead" #-}
 

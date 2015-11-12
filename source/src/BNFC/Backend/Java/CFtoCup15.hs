@@ -248,7 +248,7 @@ generateAction packageAbsyn nt f ms rev
 -- where in the pattern the non-terminal
 -- >>> generatePatterns [] (Rule "myfun" (Cat "A") [])
 -- (" /* empty */ ",[])
--- >>> generatePatterns [("def", "_SYMB_1")] (Rule "myfun" (Cat "A") [Right "def", Left (Cat "B")])
+-- >>> generatePatterns [("def", "_SYMB_1")] (Rule "myfun" (Cat "A") [AnonymousTerminal "def", NonTerminal (Cat "B")])
 -- ("_SYMB_1 B:p_2 ",["p_2"])
 generatePatterns :: SymEnv -> Rule -> (Pattern,[MetaVar])
 generatePatterns env r = case rhsRule r of
@@ -257,7 +257,7 @@ generatePatterns env r = case rhsRule r of
  where
     mkIt _ [] = []
     mkIt n (i:is) = case i of
-        Left c -> c' ++ ":p_" ++ show (n :: Int) +++ mkIt (n+1) is
+        NonTerminal c -> c' ++ ":p_" ++ show (n :: Int) +++ mkIt (n+1) is
           where
               c' = case c of
                   TokenCat "Ident"   -> "_IDENT_"
@@ -266,10 +266,12 @@ generatePatterns env r = case rhsRule r of
                   TokenCat "Double"  -> "_DOUBLE_"
                   TokenCat "String"  -> "_STRING_"
                   _         -> identCat c
-        Right s -> case lookup s env of
-            (Just x) -> x +++ mkIt (n+1) is
-            (Nothing) -> mkIt n is
-    metas its = ["p_" ++ show i | (i,Left _) <- zip [1 :: Int ..] its]
+        AnonymousTerminal s -> lup s
+        IndentationTerminal s -> lup s
+        where lup s = case lookup s env of
+                      (Just x) -> x +++ mkIt (n+1) is
+                      (Nothing) -> mkIt n is
+    metas its = ["p_" ++ show i | (i,NonTerminal _) <- zip [1 :: Int ..] its]
 
 -- We have now constructed the patterns and actions,
 -- so the only thing left is to merge them into one string.

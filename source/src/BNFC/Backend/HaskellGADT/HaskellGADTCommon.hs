@@ -28,7 +28,7 @@ data Constructor = Constructor
     , consFun :: Fun
     , consPrec :: Integer
     , consVars :: [(Cat,String)]
-    , consRhs :: [Either Cat String]
+    , consRhs :: RhsRule
     }
 
 -- | Get category, function, and rhs categories paired with variable names.
@@ -40,7 +40,7 @@ cf2cons cf =
         } | (cat,rules) <- cf2data cf, (fun,cats) <- rules]
     ++ [ Constructor
         { consCat = cat, consFun = show cat, consPrec = 0
-        , consVars = [(Cat "String","str")], consRhs = [Left (Cat "String")]
+        , consVars = [(Cat "String","str")], consRhs = [NonTerminal (Cat "String")]
         } | cat <- specialCats cf]
   where
     mkVars cats = mkUnique (map catToVar cats) (0 :: Int)
@@ -74,7 +74,7 @@ precFun :: CF -> Fun -> Integer
 precFun cf f = precRule $ ruleFun cf f
 
 -- | Get the RHS of a function
-rhsFun :: CF -> Fun -> [Either Cat String]
+rhsFun :: CF -> Fun -> RhsRule
 rhsFun cf f = rhsRule $ ruleFun cf f
 
 isTreeType :: CF -> Cat -> Bool

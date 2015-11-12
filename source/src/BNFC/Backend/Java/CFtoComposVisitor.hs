@@ -21,7 +21,6 @@
 module BNFC.Backend.Java.CFtoComposVisitor (cf2ComposVisitor) where
 
 import Data.List
-import Data.Either (lefts)
 import BNFC.CF
 import BNFC.Backend.Java.Utils (TypeMapping, isBasicType)
 import BNFC.Utils ((+++))
@@ -63,7 +62,7 @@ prData tm packageAbsyn user (cat, rules) = unlines
     , concatMap (render . prRule tm packageAbsyn user cat) rules
     ]
 -- | traverses a standard rule.
--- >>> prRule "lang.absyn" [Cat "A"] (Cat "B") (Rule "F" (Cat "B") [Left (Cat "A"), Right "+", Left (ListCat (Cat "B"))])
+-- >>> prRule "lang.absyn" [Cat "A"] (Cat "B") (Rule "F" (Cat "B") [NonTerminal (Cat "A"), AnonymousTerminal "+", NonTerminal (ListCat (Cat "B"))])
 --     public B visit(lang.absyn.F p, A arg)
 --     {
 --       String a_ = p.a_;
@@ -82,7 +81,7 @@ prRule tm packageAbsyn user cat (Rule fun _ cats)
         [ vcat (map (prCat tm user) cats')
         , "return new" <+> cls <> parens (hsep (punctuate "," vnames)) <> ";" ] ]
   where
-    cats' = filter ((/= InternalCat) . fst) (lefts (numVars cats))
+    cats' = filter ((/= InternalCat) . fst) (nonTerminals (numVars cats))
     cls = text (packageAbsyn ++ "." ++ fun)
     vnames = map snd cats'
 prRule _ _ _ _ _ = ""

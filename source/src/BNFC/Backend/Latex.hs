@@ -217,11 +217,12 @@ prtRules ((c, r : rs) : xs)
                  [[[],delimiter,prtSymbols (rhsRule y)] | y <-  rs]) ++
       prtRules xs
 
-prtSymbols :: [Either Cat String] -> String
+prtSymbols :: RhsRule -> String
 prtSymbols [] = empty
 prtSymbols xs = foldr ((+++) . p) [] xs
- where p (Left  r) = nonterminal r --- (prt r)
-       p (Right r) = terminal    (prt r)
+ where p (NonTerminal  r) = nonterminal r --- (prt r)
+       p (AnonymousTerminal r) = terminal    (prt r)
+       p (IndentationTerminal r) = p (AnonymousTerminal r)
 
 
 prt :: String -> String

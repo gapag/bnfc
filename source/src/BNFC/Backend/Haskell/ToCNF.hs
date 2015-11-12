@@ -67,9 +67,10 @@ class Pretty a where
 instance (Pretty k, Pretty v) => Pretty (Set k v) where
   pretty s = sep [pretty k <> " --> " <> pretty v | (k,x) <- M.assocs s, v <- x]
 
-instance Pretty (Either Cat String) where
-  pretty (Left x) = text $ show x
-  pretty (Right x) = quotes $ text x
+instance Pretty (RhsRuleElement Cat String) where
+  pretty (NonTerminal x) = text $ show x
+  pretty (AnonymousTerminal x) = quotes $ text x
+  pretty (IndentationTerminal x) = quotes $ text x
 
 instance Pretty String where
   pretty = text
@@ -99,7 +100,7 @@ header opts
               ]
 
 genShowFunction cf = hang "showAst (cat,ast) = case cat of " 6
-       (vcat [catTag (Left cat) <> " -> printTree ((unsafeCoerce# ast)::" <> text (show cat) <> ")"
+       (vcat [catTag (NonTerminal cat) <> " -> printTree ((unsafeCoerce# ast)::" <> text (show cat) <> ")"
              | cat <- filter isDataCat $ allCats cf] $$
         "_ -> \"Unprintable category\"")
 
@@ -110,9 +111,10 @@ genCatTags cf = "data CATEGORY = " <> punctuate' "|" (map catTag (allSyms cf)) $
 
 genDesc :: CFG Exp -> CatDescriptions -> Doc
 genDesc cf descs = vcat ["describe " <> catTag s <> " = " <> text (show (descOf s)) | s <- allSyms cf]
-  where descOf :: Either Cat String -> String
-        descOf (Right x) = "token " <> x
-        descOf (Left x) = maybe (show x) render $ M.lookup x descs
+  where descOf :: RhsRuleElement Cat String -> String
+        descOf (AnonymousTerminal x) = "token " <> x
+        descOf (IndentationTerminal x) = "token " <> x
+        descOf (NonTerminal x) = maybe (show x) render $ M.lookup x descs
 
 genCombTable :: UnitRel Cat -> CFG Exp -> Doc
 genCombTable units cf =
@@ -120,8 +122,8 @@ genCombTable units cf =
   $$ genCombine units cf
   $$ "combine _ _ _ = pure []"
 
-allSyms :: CFG Exp -> [Either Cat String]
-allSyms cf = map Left (allCats cf  ++ literals cf) ++ map (Right . fst) (cfTokens cf)
+allSyms :: CFG Exp -> RhsRule
+allSyms cf = map NonTerminal (allCats cf  ++ literals cf) ++ map (AnonymousTerminal . fst) (cfTokens cf)
 
 
 ppPair (x,y) = parens $ x <> comma <> " " <> y
@@ -136,14 +138,14 @@ prettyListFun xs = parens $ sep (map (<> "$") xs) <> "[]"
 genCombine :: UnitRel Cat -> CFG Exp -> Doc
 genCombine units cf = vcat $ map genEntry $ group' $ map (alt units) (cfgRules cf)
   where genEntry :: ((RHSEl,RHSEl),[(Cat,Exp)]) -> Doc
-        genEntry ((r1,r2),cs) = "combine p " <> catTag r1 <> " " <> catTag r2 <> " = " <> prettyPair (genList <$> splitOptim (Left . fst) cf cs)
+        genEntry ((r1,r2),cs) = "combine p " <> catTag r1 <> " " <> catTag r2 <> " = " <> prettyPair (genList <$> splitOptim (NonTerminal . fst) cf cs)
         mkLam body = "\\x y -> " <> body
-        genList xs = prettyListFun [p (ppPair (catTag . Left $ x, mkLam . prettyExp . unsafeCoerce' $ y)) | ((x,y),p) <- xs]
+        genList xs = prettyListFun [p (ppPair (catTag . NonTerminal $ x, mkLam . prettyExp . unsafeCoerce' $ y)) | ((x,y),p) <- xs]
 
 alt :: UnitRel Cat -> Rul Exp -> ((RHSEl,RHSEl),[(Cat,Exp)])
 alt units (Rule f c [r1,r2]) = ((r1,r2),initial:others)
   where initial = (c, f `appMany` args)
-        others = [(c', f' `app'` (f `appMany` args)) | (f',c') <- lookupMulti (Left c) units]
+        others = [(c', f' `app'` (f `appMany` args)) | (f',c') <- lookupMulti (NonTerminal c) units]
         args = map (unsafeCoerce' . Con) $ ["x"|isCat r1]++["y"|isCat r2]
 alt _ _ = error "Only works with binary rules"
 
@@ -167,15 +169,15 @@ genTokCommon cf xs = prettyPair (gen <$> splitOptim fst cf xs)
 
 genSpecEntry cf units (tokName,constrName,fun) = "tokenToCats p (PT (Pn _ l c) (" <> constrName <> " x)) = " <> genTokCommon cf xs
   where xs = map (second (prettyExp . (\f -> unsafeCoerce' (f `app'` tokArgs)))) $
-             (Left tokName, fun) : [(Left c,f `after` fun) | (f,c) <- lookupMulti (Left tokName) units]
+             (NonTerminal tokName, fun) : [(NonTerminal c,f `after` fun) | (f,c) <- lookupMulti (NonTerminal tokName) units]
         tokArgs | isPositionCat cf tokName = Con "((l,c),x)"
                 | otherwise = Con "x"
 
 genTokEntry cf units (tok,x) =
   " -- " <> text tok $$
   "tokenToCats p (PT posn (TS _ " <> int x <> ")) = " <> genTokCommon cf xs
-  where xs = (Right tok, tokVal) :
-             [(Left c,prettyExp (unsafeCoerce' f)) | (f,c) <- lookupMulti (Right tok) units]
+  where xs = (AnonymousTerminal tok, tokVal) :
+             [(NonTerminal c,prettyExp (unsafeCoerce' f)) | (f,c) <- lookupMulti (AnonymousTerminal tok) units]
         tokVal = "error" <> (text $ show $ "cannot access value of token: " ++ tok)
 
 ppList = brackets . punctuate' ", "

@@ -35,9 +35,13 @@ prog returns [ Layout.Absyn.Prog result ]
 : p_1_1=listStm { $result = new Layout.Absyn.Program($p_1_1.result); } # Program
 ;
 stm returns [ Layout.Absyn.Stm result ] : {pr("ass");}
-   p_1_1=IDENT {pr($p_1_1.getText());} Surrogate_id_SYMB_0  p_1_3=exp  { $result = new Layout.Absyn.Assign($p_1_1.getText(),$p_1_3.result); } # Assign
-  | {pr("if"); } Surrogate_id_SYMB_3  {ll.ignoreIndentation();} p_2_2=listExp
-  {ll.resumeIndentation(); pr("(if's condition)");} Surrogate_id_SYMB_1 {pr(":");} p_2_4=indentedListStm  { $result = new Layout.Absyn.If($p_2_2.result,$p_2_4.result); } # If
+   p_1_1=IDENT {pr($p_1_1.getText());}
+   Surrogate_id_SYMB_0
+   p_1_3=exp  { $result = new Layout.Absyn.Assign($p_1_1.getText(),$p_1_3.result); } # Assign
+  |
+  {pr("if"); } Surrogate_id_SYMB_3
+  {ll.ignoreIndentation();} p_2_2=listExp {ll.resumeIndentation(); pr("(if's condition)");}
+  Surrogate_id_SYMB_1 {pr(":");} p_2_4=indentedListStm  { $result = new Layout.Absyn.If($p_2_2.result,$p_2_4.result); } # If
 ;
 
 exp returns [ Layout.Absyn.Exp result ] : Surrogate_id_SYMB_2  { pr("true"); $result = new Layout.Absyn.True(); } # True

@@ -139,13 +139,14 @@ propertyName c = c ++ "_"
 
 -- Given a rule's definition, it goes through and nicely the properties by type.
 -- Does the same thing as numVars in NamedVariables, except the varName part
-numProps :: [(String, Int)] -> [Either Cat b] -> [Either String b]
+numProps :: [(String, Int)] -> [RhsRuleElement Cat b] -> [RhsRuleElement String b]
 numProps _env [] = []
-numProps env ((Right f) : fs) = (Right f) : (numProps env fs)
-numProps env ((Left f) : fs) =
+numProps env ((AnonymousTerminal f) : fs) = (AnonymousTerminal f) : (numProps env fs)
+numProps env ((IndentationTerminal f) : fs) = (IndentationTerminal f) : (numProps env fs)
+numProps env ((NonTerminal f) : fs) =
    case lookup f' env of
-     Nothing -> (Left f') : (numProps ((f',1):env) fs)
-     Just n -> (Left $ f' ++ (show $ n + 1)) : (numProps ((f',n+1):env) fs)
+     Nothing -> (NonTerminal f') : (numProps ((f',1):env) fs)
+     Just n -> (NonTerminal $ f' ++ (show $ n + 1)) : (numProps ((f',n+1):env) fs)
  where
    f' = propertyName (identCat (normCat f))
 

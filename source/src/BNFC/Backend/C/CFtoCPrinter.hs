@@ -49,7 +49,6 @@ import BNFC.Backend.Common.StrUtils (renderCharOrString)
 import BNFC.Backend.Utils (isTokenType)
 import Data.List
 import Data.Char(toLower)
-import Data.Either (lefts)
 import BNFC.PrettyPrint
 
 --Produces (.h file, .c file)
@@ -418,14 +417,16 @@ prPrintRule user r@(Rule fun _ cats) | not (isCoercion fun) = unlines
 prPrintRule _ _ = ""
 
 --This goes on to recurse to the instance variables.
-prPrintCat :: [UserDef] -> String -> Either (Cat, Doc) String -> String
+prPrintCat :: [UserDef] -> String -> RhsRuleElement (Cat, Doc) String -> String
 prPrintCat user fnm (c) = case c of
-  Right t -> "    " ++ render (renderX t) ++ ";\n"
-  Left (cat, nt) | isTokenType user cat -> "    pp" ++ basicFunName (render nt) ++ "(_p_->u." ++ v ++ "_." ++ render nt ++ ", " ++ show (precCat cat) ++ ");\n"
-  Left (InternalCat, _) -> "    /* Internal Category */\n"
-  Left (cat, nt) -> "    pp" ++ identCat (normCat cat) ++ "(_p_->u." ++ v ++ "_." ++ render nt ++ ", " ++ show (precCat cat) ++ ");\n"
+  AnonymousTerminal t -> renderRhsElement t
+  IndentationTerminal t -> renderRhsElement t
+  NonTerminal (cat, nt) | isTokenType user cat -> "    pp" ++ basicFunName (render nt) ++ "(_p_->u." ++ v ++ "_." ++ render nt ++ ", " ++ show (precCat cat) ++ ");\n"
+  NonTerminal (InternalCat, _) -> "    /* Internal Category */\n"
+  NonTerminal (cat, nt) -> "    pp" ++ identCat (normCat cat) ++ "(_p_->u." ++ v ++ "_." ++ render nt ++ ", " ++ show (precCat cat) ++ ");\n"
  where
   v = map toLower (normFun fnm)
+  renderRhsElement x = "    " ++ render (renderX x) ++ ";\n"
 
 {- **** Abstract Syntax Tree Printer **** -}
 
@@ -508,14 +509,14 @@ prShowRule user (Rule fun _ cats) | not (isCoercion fun) = unlines
       else ("  bufAppendC(' ');\n", "  bufAppendC('(');\n","  bufAppendC(')');\n")
     cats' = if allTerms cats
         then ""
-        else concat (insertSpaces (map (prShowCat user fun) (lefts $ numVars cats)))
+        else concat (insertSpaces (map (prShowCat user fun) (nonTerminals $ numVars cats)))
     insertSpaces [] = []
     insertSpaces (x:[]) = [x]
     insertSpaces (x:xs) = if x == ""
       then insertSpaces xs
       else x : "  bufAppendC(' ');\n" : insertSpaces xs
     allTerms [] = True
-    allTerms (Left _:_) = False
+    allTerms (NonTerminal _:_) = False
     allTerms (_:zs) = allTerms zs
 prShowRule _ _ = ""
 

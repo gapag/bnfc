@@ -177,11 +177,12 @@ prtRules ((c, r : rs) : xs)
     ---  "\n\n" ++ --- with empty lines good for latex, bad for html
       prtRules xs
 
-prtSymbols :: [Either Cat String] -> String
+prtSymbols :: RhsRule -> String
 prtSymbols [] = empty
 prtSymbols xs = foldr ((+++) . p) [] xs
- where p (Left  r) = nonterminal r
-       p (Right r) = terminal r
+ where p (NonTerminal  r) = nonterminal r
+       p (AnonymousTerminal r) = terminal r
+       p (IndentationTerminal r) = terminal r
 
 prt :: String -> String
 prt s = s

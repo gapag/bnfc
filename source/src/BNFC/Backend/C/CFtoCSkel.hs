@@ -44,8 +44,6 @@ import BNFC.Utils                       ( (+++) )
 import BNFC.Backend.Common.NamedVariables
 import BNFC.Backend.Utils (isTokenType)
 import Data.Char                ( toLower, toUpper )
-import Data.Either (lefts)
-
 import Text.PrettyPrint
 
 --Produces (.H file, .C file)
@@ -225,7 +223,7 @@ prPrintRule user (Rule fun _c cats) | not (isCoercion fun) = nest 2 $ vcat
         ])
     ]
   where
-    cats' = vcat $ map (prCat user fun) (lefts (numVars cats))
+    cats' = vcat $ map (prCat user fun) (nonTerminals (numVars cats))
 prPrintRule _user (Rule _fun _ _) = ""
 
 -- Prints the actual instance-variable visiting.

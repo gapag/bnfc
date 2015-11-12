@@ -40,28 +40,26 @@
 module BNFC.Backend.Java.CFtoAntlr4Parser ( cf2AntlrParse ) where
 
 import Data.List
-import Text.PrettyPrint
 import BNFC.CF
 import BNFC.Backend.Java.Utils
 import BNFC.Backend.Common.NamedVariables
 import BNFC.Utils ( (+++), (+.+))
-import BNFC.PrettyPrint
+
 
 -- Type declarations
 type Rules       = [(NonTerminal,[(Pattern, Fun, Action)])]
-type Pattern     = String
+type AtomicPattern = String
+type PatternSegment = (Action, AtomicPattern, Action)
+type Pattern     = [PatternSegment] -- for each assignment/token, there is a pre- and post- action
 type Action      = String
 type MetaVar     = (String, Cat)
-
-data AntlrParserSpec = AP {
-
-    }
 
 -- | Creates the ANTLR parser grammar for this CF.
 --The environment comes from CFtoAntlr4Lexer
 cf2AntlrParse :: TypeMapping -> String -> String -> CF -> SymEnv -> String
 cf2AntlrParse tm packageBase packageAbsyn cf env = unlines
     [ header
+    , lexerRef
     , tokens
     , prRules packageAbsyn (rulesForAntlr4 tm packageAbsyn cf env)
     ]
@@ -77,6 +75,10 @@ cf2AntlrParse tm packageBase packageAbsyn cf env = unlines
         , "  tokenVocab = "++packageBase++"Lexer;"
         , "}"
         ]
+    lexerRef :: String
+    lexerRef = if (hasIndentation cf)
+            then javaParserPreamble packageBase
+            else ""
 
 rulesForAntlr4 :: TypeMapping -> String -> CF -> SymEnv -> Rules
 rulesForAntlr4 tm packageAbsyn cf env = map mkOne getrules
@@ -85,10 +87,8 @@ rulesForAntlr4 tm packageAbsyn cf env = map mkOne getrules
     mkOne (cat,rules) = constructRule tm packageAbsyn cf env rules cat
 
 
-javaParserPreamble lang = vcat [
-        "@parser::members"
-        , codeblock 2 [ lang<>"Lexer ll"]
-    ]
+javaParserPreamble lang = "@parser::members {"++lang++"Lexer ll;}"
+
 
 -- | For every non-terminal, we construct a set of rules. A rule is a sequence of
 -- terminals and non-terminals, and an action to be performed.
@@ -102,18 +102,43 @@ constructRule :: TypeMapping
 constructRule tm packageAbsyn cf env rules nt =
     (nt, [ (p , funRule r , generateAction tm packageAbsyn nt (funRule r) (revM b m) b)
           | (index ,r0) <- zip [1..(length rules)] rules,
-          let (b,r) = if isConsFun (funRule r0) && elem (valCat r0) revs
+          let isCons = isConsFun (funRule r0)
+              (b,r)  = if isCons && elem (valCat r0) revs
                           then (True, revSepListRule r0)
                           else (False, r0)
-              (p,m) = generatePatterns index env r])
+              (p,m)  = generatePatterns (nonTokenRule (isIndent isCons)) index env r])
  where
    revM False = id
    revM True  = reverse
    revs       = cfgReversibleCats cf
+   rul :: Cat -> String
+   rul c = firstLowerCase (getRuleName (identCat c))
+   nonTokenRule :: (Cat -> (Action, AtomicPattern, Action)) -> Cat -> (Action, AtomicPattern, Action)
+   nonTokenRule cs c = if isTokenCat c
+                      then noAction $ identCat c
+                      else cs c
+   isIndent :: Bool -> Cat -> (Action, AtomicPattern, Action)
+   isIndent isCons = if hasIndentation cf
+                then indFun isCons
+                else noAction . rul
+   indFun :: Bool -> Cat -> (Action, AtomicPattern, Action)
+   indFun isCons c = if (not isCons)&& isList c
+                then toggleIndentation (if (isIndentedCat cf (normCatOfList c))
+                                        then  IndentationEnterCat c
+                                        else  c)
+                else noAction $ rul c
+   toggleIndentation c = indentationAction (pre c) $ rul c
+   pre c = if isIndentationEnter c
+            then "expect"
+            else "ignore"
 
 
+noAction :: String -> (Action, AtomicPattern, Action)
+noAction s = ("", s , " ")
 
-
+indentationAction :: String -> AtomicPattern -> (Action, AtomicPattern, Action)
+indentationAction pre ap = (brac pre, ap, brac "resume")
+    where brac a = "{ll." ++ a ++ "Indentation();}"
 -- Generates a string containing the semantic action.
 generateAction :: TypeMapping -> String -> NonTerminal -> Fun -> [MetaVar]
                -> Bool   -- ^ Whether the list should be reversed or not.
@@ -152,44 +177,50 @@ generateAction tm packageAbsyn nt f ms rev
 
                           where n' = '$':n
 
+
 -- | Generate patterns and a set of metavariables indicating
 -- where in the pattern the non-terminal
--- >>> generatePatterns 2 [] (Rule "myfun" (Cat "A") [])
+-- >>> generatePatterns CF{cfgPragmas = []} 2 [] (Rule "myfun" (Cat "A") [])
 -- (" /* empty */ ",[])
--- >>> generatePatterns 3 [("def", "_SYMB_1")] (Rule "myfun" (Cat "A") [Right "def", Left (Cat "B")])
+-- >>> generatePatterns CF{cfgPragmas = []} 3 [("def", "_SYMB_1")] (Rule "myfun" (Cat "A") [AnonymousTerminal "def", NonTerminal (Cat "B")])
 -- ("_SYMB_1 p_3_2=b ",[("p_3_2",B)])
-generatePatterns :: Int -> SymEnv -> Rule -> (Pattern,[MetaVar])
-generatePatterns ind env r = case rhsRule r of
-    []  -> (" /* empty */ ",[])
-    its -> (mkIt 1 its, metas its)
+generatePatterns :: (Cat -> PatternSegment) -> Int -> SymEnv -> Rule -> (Pattern,[MetaVar])
+generatePatterns cs ind env r = case rhsRule r of
+    []  -> ([noAction " /* empty */ "],[])
+    its -> (mkPattern 1 its, metas its)
  where
-    mkIt _ [] = []
-    mkIt n (i:is) = case i of
-        Left c -> "p_" ++show ind++"_"++ show (n :: Int) ++ "="++ c'
-            +++ mkIt (n+1) is
+    mkPattern _ [] = []
+    mkPattern n (i:is) = case i of
+        NonTerminal c -> (pre, "p_" ++show ind++"_"++ show (n :: Int) ++ "="++ c', post)
+            : mkPattern (n+1) is
           where
-              c' = case c of
-                  TokenCat "Ident"   -> "IDENT"
-                  TokenCat "Integer" -> "INTEGER"
-                  TokenCat "Char"    -> "CHAR"
-                  TokenCat "Double"  -> "DOUBLE"
-                  TokenCat "String"  -> "STRING"
-                  _                  -> if isTokenCat c
-                                          then identCat c
-                                          else firstLowerCase
-                                                (getRuleName (identCat c))
-        Right s -> case lookup s env of
-            (Just x) -> x +++ mkIt (n+1) is
-            (Nothing) -> mkIt n is
+              (pre,c',post) = case c of
+                  TokenCat "Ident"   -> noAction "IDENT"
+                  TokenCat "Integer" -> noAction "INTEGER"
+                  TokenCat "Char"    -> noAction "CHAR"
+                  TokenCat "Double"  -> noAction "DOUBLE"
+                  TokenCat "String"  -> noAction "STRING"
+                  _                  -> cs c
+        AnonymousTerminal s -> case lookup s env of
+            (Just x) -> (noAction x):mkPattern (n+1) is
+            (Nothing) -> mkPattern n is
+        IndentationTerminal s -> (noAction k):mkPattern n is
+          where k = case s of
+                        "+" -> "INDENTATION_INCREASED"
+                        "=" -> "INDENTATION"
+                        "-" -> "INDENTATION_DECREASED"
+                        _ -> ""
     metas its = [("p_" ++ show ind ++"_"++ show i, category)
-                    | (i,Left category) <- zip [1 :: Int ..] its]
+                    | (i,NonTerminal category) <- zip [1 :: Int ..] [c | c <- its, countItIn c ]]
+    countItIn (IndentationTerminal _) = False
+    countItIn _ = True
 
 -- | Puts together the pattern and actions and returns a string containing all
 -- the rules.
 prRules :: String -> Rules -> String
 prRules _ [] = []
 prRules packabs ((_, []):rs) = prRules packabs rs
-prRules packabs ((nt,(p, fun, a):ls):rs) =
+prRules packabs ((nt,(p, fun, a):ls):rs) = -- p is a list of pattern segments
     preamble ++ ";\n" ++ prRules packabs rs
   where
     preamble          = unwords [ nt'
@@ -199,7 +230,7 @@ prRules packabs ((nt,(p, fun, a):ls):rs) =
                         , "result"
                         , "]"
                         , ":"
-                        , p
+                        , concatMap unrollActions p
                         , "{"
                         , a
                         , "}"
@@ -208,8 +239,9 @@ prRules packabs ((nt,(p, fun, a):ls):rs) =
                         , '\n' : pr ls
                         ]
     alternative (p',fun',a')
-                      = unwords ["  |", p', "{", a' , "}", "#"
+                      = unwords ["  |", concatMap unrollActions p', "{", a' , "}", "#"
                         , antlrRuleLabel fun']
+    unrollActions (a,b,c) = a++b++c
     catid             = identCat nt
     normcat           = identCat (normCat nt)
     nt'               = getRuleName $ firstLowerCase catid

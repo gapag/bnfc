@@ -207,9 +207,10 @@ generatePatterns cf r = case rhsRule r of
   its -> (unwords (map mkIt its), metas its)
  where
    mkIt i = case i of
-     Left c -> nonterminal c
-     Right s -> terminal cf s
-   metas its = [revIf c ('$': show i) | (i,Left c) <- zip [1 ::Int ..] its]
+     NonTerminal c -> nonterminal c
+     AnonymousTerminal s -> terminal cf s
+     IndentationTerminal s -> terminal cf s
+   metas its = [revIf c ('$': show i) | (i,NonTerminal c) <- zip [1 ::Int ..] its]
    revIf c m = if (not (isConsFun (funRule r)) && elem c revs)
                  then ("(List.rev " ++ m ++ ")")
                else m  -- no reversal in the left-recursive Cons rule itself

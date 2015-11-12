@@ -45,7 +45,6 @@ import BNFC.Backend.Java.Utils(TypeMapping)
 import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
 import Text.PrettyPrint
-import Data.Either (lefts)
 
 --Produces a Skeleton using the Visitor Design Pattern.
 --Thus the user can choose which Skeleton to use.
@@ -88,7 +87,7 @@ prData tm packageAbsyn user (cat, rules)
         ]
 
 -- | traverses a standard rule.
--- >>> prRule "ABSYN" [] (Rule "EInt" undefined [Left (TokenCat "Integer"), Left (Cat "NT")])
+-- >>> prRule "ABSYN" [] (Rule "EInt" undefined [NonTerminal (TokenCat "Integer"), NonTerminal (Cat "NT")])
 -- public R visit(ABSYN.EInt p, A arg)
 -- { /* Code For EInt Goes Here */
 --   //p.integer_;
@@ -97,7 +96,7 @@ prData tm packageAbsyn user (cat, rules)
 -- }
 --
 -- It skips the internal category (indicating that a rule is not parsable)
--- >>> prRule "ABSYN" [] (Rule "EInt" undefined [Left (InternalCat), Left (TokenCat "Integer")])
+-- >>> prRule "ABSYN" [] (Rule "EInt" undefined [NonTerminal (InternalCat), NonTerminal (TokenCat "Integer")])
 -- public R visit(ABSYN.EInt p, A arg)
 -- { /* Code For EInt Goes Here */
 --   //p.integer_;
@@ -114,7 +113,7 @@ prRule tm packageAbsyn user (Rule fun _ cats)
     , "}" ]
   where
     fname = text fun                            -- function name
-    cats' = filter ((/= InternalCat).fst) (lefts (numVars cats))  -- non-terminals in the rhs
+    cats' = filter ((/= InternalCat).fst) (nonTerminals (numVars cats))  -- non-terminals in the rhs
 prRule _ _ _ _ = ""
 
 -- | Traverses a class's instance variables.

@@ -40,7 +40,7 @@ buildContext cf@CFG{..} =
     ("Ident" : tokenNames cf)
   where
 
-    mkType cat args = FunT [ mkBase t | Left t <- args, t /= InternalCat ]
+    mkType cat args = FunT [ mkBase t | NonTerminal t <- args, t /= InternalCat ]
                            (mkBase cat)
     mkBase t
         | isList t  = ListT $ mkBase $ normCatOfList t

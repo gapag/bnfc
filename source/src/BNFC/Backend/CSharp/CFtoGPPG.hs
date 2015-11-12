@@ -229,14 +229,16 @@ generatePatterns cf env r _ = case rhsRule r of
   its -> (unwords (map mkIt its), metas its)
   where
     mkIt i = case i of
-      Left c -> case lookup (show c) env of
+      NonTerminal c -> case lookup (show c) env of
         -- This used to be x, but that didn't work if we had a symbol "String" in env, and tried to use a normal String - it would use the symbol...
         Just x | not (isPositionCat cf c) && (show c) `notElem` (map fst basetypes) -> x
         _ -> typeName (identCat c)
-      Right s -> case lookup s env of
-        Just x -> x
-        Nothing -> s
-    metas its = [('$': show i,revert c) | (i,Left c) <- zip [1 :: Int ..] its]
+      AnonymousTerminal s -> lup s
+      IndentationTerminal s -> lup s
+    lup s = case lookup s env of
+              Just x -> x
+              Nothing -> s
+    metas its = [('$': show i,revert c) | (i,NonTerminal c) <- zip [1 :: Int ..] its]
 
     -- notice: reversibility with push_back vectors is the opposite
     -- of right-recursive lists!

@@ -45,7 +45,6 @@ import BNFC.Backend.Common.NamedVariables
 import BNFC.Backend.Utils (isTokenType)
 import Data.List
 import Data.Char(toLower, toUpper)
-import Data.Either (lefts)
 import BNFC.PrettyPrint
 
 --Produces (.H file, .C file)
@@ -230,7 +229,7 @@ prRule user (Rule fun _ cats) | not (isCoercion fun) = vcat
   , ""
   ]
    where
-    cats' = vcat (map (prCat user fnm) (lefts (numVars cats)))
+    cats' = vcat (map (prCat user fnm) (nonTerminals (numVars cats)))
     fnm = map toLower fun
 prRule _ _ = ""
 
