@@ -74,8 +74,8 @@ instance Print Reg where
    RChar c    -> prPrec i 3 (concat [["'"], prt 0 c, ["'"]])
    RAlts str  -> prPrec i 3 (concat [["["],prt 0 str,["]"]])
    RSeqs str  -> prPrec i 2 (concatMap (prt 0) str)
-   RDigit     -> prPrec i 3 ["[0-9]"]
-   RLetter    -> prPrec i 3 ["[A-Za-z]"]
-   RUpper     -> prPrec i 3 ["[A-Z]"]
-   RLower     -> prPrec i 3 ["[a-z]"]
-   RAny       -> prPrec i 3 ["[\\u0000-\\u00FF]"]
+   RDigit     -> prPrec i 3 [" DIGIT"]
+   RLetter    -> prPrec i 3 [" LETTER"]
+   RUpper     -> prPrec i 3 [" CAPITAL"]
+   RLower     -> prPrec i 3 [" SMALL"]
+   RAny       -> prPrec i 3 [" [\\u0000-\\u00FF] "]
