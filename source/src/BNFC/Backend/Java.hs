@@ -38,7 +38,7 @@ module BNFC.Backend.Java ( makeJava ) where
 -------------------------------------------------------------------
 -- Dependencies.
 -------------------------------------------------------------------
-import System.FilePath (pathSeparator)
+import System.FilePath (pathSeparator, isPathSeparator)
 import Data.List ( intersperse )
 import BNFC.Utils
 import BNFC.CF
@@ -438,10 +438,17 @@ cupmakedetails = MakeDetails
 antlrmakedetails :: String -> MakeFileDetails
 antlrmakedetails l = MakeDetails
     { executable = runJava "org.antlr.v4.Tool"
-    , flags               = \x -> unwords $
-                                    map
-                                      (+++take (length x - 1 ) x )
-                                      [ "-lib", "-package"]
+    , flags               =(\x -> unwords $
+                                    let path      = take (length x - 1) x
+                                        pointed   = map cnv path
+                                        cnv y = if isPathSeparator y
+                                                          then '.'
+                                                          else y
+                                        in
+                                        [ "-lib" , path
+                                        , "-package", pointed
+                                        ])
+
     , filename            = l
     , fileextension       = "g4"
     , toolname            = "ANTLRv4"
@@ -450,7 +457,12 @@ antlrmakedetails l = MakeDetails
     , results             = [l]
     , moveresults         = False
     }
-
+{-    where path x = ()
+        pointed x = map cnv (path x)
+        cnv y = if isPathSeparator y
+                  then '.'
+                  else y
+-}
 prependPath , appendExtension :: String -> [String] -> [String]
 prependPath s fi     = [s ++ x | x<- fi]
 appendExtension s fi = [x+.+s | x<- fi]

@@ -26,7 +26,7 @@ import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
 
 
-cf2AllVisitor :: String -> String -> CF -> Stringe
+cf2AllVisitor :: String -> String -> CF -> String
 cf2AllVisitor packageBase packageAbsyn cf =
   unlines [
            "package" +++ packageBase ++ ";",

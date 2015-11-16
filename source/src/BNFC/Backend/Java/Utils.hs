@@ -9,9 +9,10 @@ module BNFC.Backend.Java.Utils
  , longFloatTypename
  , longDoubleTypename
  , flexibleTypename
-
+ , getLastInPackage
      )
  where
+
 import BNFC.Backend.Common.NamedVariables
 import BNFC.Utils ( mkName, NameStyle(..))
 
@@ -77,3 +78,7 @@ longDoubleTypename t user | t == "Integer" = "Long"
 flexibleTypename t user | t == "Integer"  = "java.math.BigInteger"
                 | t == "Double"           = "java.math.BigDecimal"
                 | otherwise               = integerDoubleTypename t user
+
+getLastInPackage :: String -> String
+getLastInPackage =
+    last . words . map (\c -> if c == '.' then ' ' else c)
