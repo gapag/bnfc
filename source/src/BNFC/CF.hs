@@ -568,7 +568,7 @@ prTree (Tree (fun,trees)) = fun +++ unwords (map pr2 trees) where
 --     EAdd . Exp2 ::= Exp2 "+" Exp3 ;
 -- Will give the following signature: EAdd : Exp -> Exp -> Exp
 getAbstractSyntax :: CF -> [(Cat, [(Fun, [Cat])])]
-getAbstractSyntax cf = [ ( c, nub (constructors c) ) | c <- allCatsNorm cf ]
+getAbstractSyntax cf = [ ( c, nub (constructors c) ) | c <- allCatsNorm cf, not $ isIndentationEnter c ]
   where
     constructors cat = do
         rule <- cfgRules cf

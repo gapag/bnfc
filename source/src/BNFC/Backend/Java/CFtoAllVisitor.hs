@@ -26,7 +26,7 @@ import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
 
 
-cf2AllVisitor :: String -> String -> CF -> String
+cf2AllVisitor :: String -> String -> CF -> Stringe
 cf2AllVisitor packageBase packageAbsyn cf =
   unlines [
            "package" +++ packageBase ++ ";",
@@ -39,7 +39,7 @@ cf2AllVisitor packageBase packageAbsyn cf =
            "{}"]
   where
     groups = [ g
-        | g@(c,_) <- fixCoercions (ruleGroupsInternals cf), not (isList c) ]
+        | g@(c,_) <- fixCoercions (ruleGroupsInternals cf), not (isList c || isIndentationEnter c) ]
     is     = map (prInterface packageAbsyn) groups
 
 prInterface :: String -> (Cat, [Rule]) -> String

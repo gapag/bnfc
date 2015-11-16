@@ -73,7 +73,7 @@ cf2JavaPrinter tm packageBase packageAbsyn cf =
    ]
   where
     user = [n | (n,_) <- tokenPragmas cf]
-    groups = fixCoercions (ruleGroupsInternals cf)
+    groups = fixCoercions (filter (\(c ,_)-> not $ isIndentationEnter c) $ ruleGroupsInternals cf)
     integerType = tm "Integer" []
     doubleType  = tm "Double" []
     header = unlines [
@@ -186,8 +186,9 @@ prRender = unlines
 
 prEntryPoints :: String -> CF -> String
 prEntryPoints packageAbsyn cf =
-    msg ++ concatMap prEntryPoint (allCats cf) ++ msg2
+    msg ++ concatMap prEntryPoint allCats' ++ msg2
  where
+  allCats' = [nind | nind <- allCats cf, not $ isIndentationEnter nind]
   msg = "  //  print and show methods are defined for each category.\n"
   msg2 = "  /***   You shouldn't need to change anything beyond this point.   ***/\n"
   prEntryPoint cat | normCat cat == cat = unlines

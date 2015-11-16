@@ -243,7 +243,7 @@ prRules packabs ((nt,(p, fun, a):ls):rs) = -- p is a list of pattern segments
                         , antlrRuleLabel fun']
     unrollActions (a,b,c) = a++b++c
     catid             = identCat nt
-    normcat           = identCat (normCat nt)
+    normcat           = identCat (normCat $ catOfIndentedList nt)
     nt'               = getRuleName $ firstLowerCase catid
     pr []             = []
     pr (k:ls) = unlines [alternative k] ++ pr ls

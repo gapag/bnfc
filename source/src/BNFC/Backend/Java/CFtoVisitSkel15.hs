@@ -58,7 +58,7 @@ cf2VisitSkel tm packageBase packageAbsyn cf =
     "}"]
   where
     user = fst (unzip (tokenPragmas cf))
-    groups = fixCoercions (ruleGroupsInternals cf)
+    groups = fixCoercions (filter (\(c ,_)-> not $ isIndentationEnter c) $ ruleGroupsInternals cf)
     header = unlines [
       "package" +++ packageBase ++ ";",
       "import" +++ packageAbsyn ++ ".*;",

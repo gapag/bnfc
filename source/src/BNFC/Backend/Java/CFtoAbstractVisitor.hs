@@ -35,7 +35,7 @@ cf2AbstractVisitor packageBase packageAbsyn cf =
   where
     user = fst (unzip (tokenPragmas cf))
     groups = [ g
-      | g@(c,_) <- fixCoercions (ruleGroupsInternals cf), not (isList c) ]
+      | g@(c,_) <- fixCoercions (ruleGroupsInternals cf), not (isList c || isIndentationEnter c) ]
 
 --Traverses a category based on its type.
 prData :: String -> [UserDef] -> (Cat, [Rule]) -> String

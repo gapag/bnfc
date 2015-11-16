@@ -36,7 +36,7 @@ cf2ComposVisitor tm packageBase packageAbsyn cf =
   where
     user   = fst (unzip (tokenPragmas cf))
     groups = [ g
-        | g@(c,_) <- fixCoercions (ruleGroupsInternals cf), not (isList c) ]
+        | g@(c,_) <- fixCoercions (ruleGroupsInternals cf), not (isList c || isIndentationEnter c) ]
     is     = map (prInterface packageAbsyn) groups
     header = unlines [
       "package" +++ packageBase ++ ";"

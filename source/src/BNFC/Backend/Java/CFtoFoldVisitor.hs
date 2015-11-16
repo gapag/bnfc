@@ -45,7 +45,7 @@ cf2FoldVisitor tm packageBase packageAbsyn cf =
      "}"]
   where
     user = fst (unzip (tokenPragmas cf))
-    groups = [ g | g@(c,_) <- fixCoercions (ruleGroupsInternals cf), not (isList c) ]
+    groups = [ g | g@(c,_) <- fixCoercions (ruleGroupsInternals cf), not (isList c || isIndentationEnter c) ]
 
 --Traverses a category based on its type.
 prData :: TypeMapping -> String -> [UserDef] -> (Cat, [Rule]) -> String
