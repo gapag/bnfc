@@ -44,7 +44,7 @@ import BNFC.CF
 import BNFC.Backend.Java.Utils
 import BNFC.Backend.Common.NamedVariables
 import BNFC.Utils ( (+++), (+.+))
-
+import BNFC.PrettyPrint
 
 -- Type declarations
 type Rules       = [(NonTerminal,[(Pattern, Fun, Action)])]
@@ -78,7 +78,7 @@ cf2AntlrParse tm packageBase packageAbsyn cf env = unlines
     identifier = getLastInPackage packageBase
     lexerRef :: String
     lexerRef = if (hasIndentation cf)
-            then javaParserPreamble $ packageBase++"."++identifier
+            then show ( javaParserPreamble (text packageBase<>"."<> text identifier))
             else ""
 
 
@@ -88,8 +88,20 @@ rulesForAntlr4 tm packageAbsyn cf env = map mkOne getrules
     getrules          = ruleGroups cf
     mkOne (cat,rules) = constructRule tm packageAbsyn cf env rules cat
 
-
-javaParserPreamble lang = "@parser::members {"++lang++"Lexer ll;}"
+javaParserPreamble lang = vcat [
+    "@parser::members"
+    , codeblock 2 [
+        lang<>"Lexer ll;"
+        ,lang<>"Lexer" <+> "ll()",
+        codeblock 2 [
+            "if(ll==null)"
+            , codeblock 2 [
+                "ll = ("<>lang<>"Lexer)this.getInputStream().getTokenSource();"
+                ]
+            , "return ll;"
+            ]
+        ]
+    ]
 
 
 -- | For every non-terminal, we construct a set of rules. A rule is a sequence of
@@ -140,7 +152,7 @@ noAction s = ("", s , " ")
 
 indentationAction :: String -> AtomicPattern -> (Action, AtomicPattern, Action)
 indentationAction pre ap = (brac pre, ap, brac "resume")
-    where brac a = "{ll." ++ a ++ "Indentation();}"
+    where brac a = "{ll()." ++ a ++ "Indentation();}"
 -- Generates a string containing the semantic action.
 generateAction :: TypeMapping -> String -> NonTerminal -> Fun -> [MetaVar]
                -> Bool   -- ^ Whether the list should be reversed or not.
