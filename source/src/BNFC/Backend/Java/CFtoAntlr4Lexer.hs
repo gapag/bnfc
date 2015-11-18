@@ -336,7 +336,7 @@ javaLexerPreamble =
             , "public final java.util.Deque<Boolean> initIgnoringIndentation()"
             , codeblock 2 [
                 "java.util.ArrayDeque<Boolean> dq = new java.util.ArrayDeque<Boolean>();"
-                , "dq.push(false);"
+                , "dq.push(true);"
                 , "return dq;"
             ]
             , "public void ignoreIndentation()"
@@ -349,11 +349,7 @@ javaLexerPreamble =
             , codeblock 2 ["return ignoringIndentation.pop();"]
             , "@Override"
             , "public Token nextToken()"
-            , codeblock 2 [ "if(isIgnoringIndentation())"
-                    , codeblock 2 ["return getNextTokenIgnoringIndentation();"]
-                    , "else"
-                    , codeblock 2 ["return getNextToken();"]
-                ]
+            , codeblock 2 [ "return getNextToken();"]
             , "private Token getNextToken()"
             , codeblock 2 [ "Token t = null;"
                 , "if(pendingTokens.size()>0)"
@@ -385,14 +381,7 @@ javaLexerPreamble =
                 ]
                 , "return t;"
             ]
-            , "private Token getNextTokenIgnoringIndentation()"
-            , codeblock 2 [ "Token t = null;"
-                , "do"
-                , codeblock 2 ["t = getNextToken();"]
-                , "while(isIndentation(t));"
-                , "return t;"
-            ]
-            , "private final boolean isIndentation(Token t)"
+            , "public final boolean isIndentation(Token t)"
             , codeblock 2 [ "return t.getType() == INDENTATION_DECREASED"
                 , "|| t.getType() == INDENTATION"
                 , "|| t.getType() == INDENTATION_INCREASED;"

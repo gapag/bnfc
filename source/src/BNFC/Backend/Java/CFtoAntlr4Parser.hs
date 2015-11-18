@@ -100,6 +100,41 @@ javaParserPreamble lang = vcat [
                 ]
             , "return ll;"
             ]
+
+        , "@Override"
+        , "public Token match(int ttype) throws RecognitionException"
+        , codeblock 2 [
+            "Token t = this.getCurrentToken();"
+            , "if(t.getType() == ttype)"
+            , codeblock 2 [
+                "if(ttype == -1) this.matchedEOF = true;"
+                , "this._errHandler.reportMatch(this);"
+                , "this.consume();"
+
+            ]
+            , "else"
+            ,codeblock 2 [
+                "LLayoutLexer lale = ll();"
+                , "if(lale.isIgnoringIndentation() && lale.isIndentation(t))"
+                , codeblock 2 [
+                  "this.consume();"
+                  , "return match(ttype);"
+                ]
+                , "else"
+                , codeblock 2 [
+                 "t = this._errHandler.recoverInline(this);"
+                , "if(this._buildParseTrees && t.getTokenIndex() == -1)"
+                , codeblock 2 ["this._ctx.addErrorNode(t);"]
+                ]
+
+
+
+
+            ]
+
+            , "return t;"
+
+        ]
         ]
     ]
 
