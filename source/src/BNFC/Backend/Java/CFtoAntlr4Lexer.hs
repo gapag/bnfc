@@ -128,7 +128,7 @@ cf2AntlrLex packageBase cf = (makeLexer al, env)
         conditionalSimple catDouble doubleAntlrDefinition
     tokenInteger            =
         conditionalSimple catInteger integerAntlrDefinition
-    env                     = --TODO HERE INSERT THE INDENTATION TOKENS!!!
+    env                     =
                     makeSymEnv (cfgSymbols cf ++ reservedWords cf) (0 :: Int)
     makeSymEnv [] _         = []
     makeSymEnv (s:symbs) n  =
@@ -228,14 +228,14 @@ stringInitToken = vcat [ "// String token type"
 indentationMode :: AntlrModeDef
 indentationMode = vcat [
       "INDENTATION : "
-    , "  White*{getText().length() == indentation.length()}?"
+    , "  White*{getText().length() == indentationLength()}?"
     , "  -> mode(INDENT);"
     , "INDENTATION_INCREASED :"
-    , "  White*{getText().length() > indentation.length()}?"
+    , "  White*{getText().length() > indentationLength()}?"
     , "  {increaseIndentation(getText());}"
     , "  -> mode(INDENT);"
     , "INDENTATION_DECREASED :"
-    , "  White*{getText().length() < indentation.length()}?"
+    , "  White*{getText().length() < indentationLength()}?"
     , "  {decreaseIndentation();}"
     , "  -> mode(INDENT);"
     ]
@@ -305,18 +305,27 @@ javaLexerPreamble =
             , "private final java.util.Deque<Token> pendingTokens  = initPendingTokens();"
             , "public void increaseIndentation(String d)"
             , codeblock 2 [ "if(isIgnoringIndentation()) return;"
-                , "nestingDiffs.push(d.length() - nestingDiffs.peekFirst());"
-                , "indentation.append(d.substring(0,nestingDiffs.peekFirst()));"
+                    , "int peeking = nestingDiffs.peekFirst();"
+                    , "if(peeking == -1) nestingDiffs.push(d.length());"
+                    , "else nestingDiffs.push(d.length() - indentationLength());"
+                    , "indentation = new StringBuffer(d);"
                 ]
+            , "public int indentationLength()"
+            , codeblock 2 [
+                "if (nestingDiffs.peek() == -1) return -1;"
+               , "else return indentation.length();"
+            ]
             , "public void decreaseIndentation()"
             , codeblock 2 [
                 "if(isIgnoringIndentation()) return;"
-                , "indentation = indentation.delete(0, nestingDiffs.pop());"
+                , "int popped = nestingDiffs.pop();"
+                , "if(popped != -1) indentation = indentation.delete(0, popped);"
+
             ]
             , "public final java.util.Deque<Integer> initNestingDiffs()"
             , codeblock 2 [
                             "java.util.ArrayDeque<Integer> dq = new java.util.ArrayDeque<Integer>();"
-                            , "dq.push(0);"
+                            , "dq.push(-1);"
                             , "return dq;"
                         ]
             , "public final java.util.Deque<Token> initPendingTokens()"
@@ -346,16 +355,35 @@ javaLexerPreamble =
                     , codeblock 2 ["return getNextToken();"]
                 ]
             , "private Token getNextToken()"
-            , codeblock 2 [ "if(pendingTokens.size()>0)"
-		, codeblock 2 [ "return pendingTokens.pop();"]
+            , codeblock 2 [ "Token t = null;"
+                , "if(pendingTokens.size()>0)"
+		, codeblock 2 [ "t = pendingTokens.pop();"]
                 , "else"
-                , codeblock 2 [ "Token t = super.nextToken();"
+                , codeblock 2 [ "t = super.nextToken();"
                     , "if(t.getType() == INDENTATION_DECREASED)"
                     , codeblock 2 [
-                        "pendingTokens.add(this._factory.create(INDENTATION,indentation.toString()));"
+                        "pendingTokens.push(this._factory.create(INDENTATION,indentation.toString()));"
                     ]
-                    , "return t;"
+                    , "else if (t.getType() == -1)"
+                    ,codeblock 2 [
+                        "pendingTokens.push(t);"
+                        , "pendingTokens.push(t);// twice is better! (Test looks for one more EOF)"
+                        , "java.util.Iterator<Integer> it = nestingDiffs.descendingIterator();"
+                        , "ignoringBottom:"
+                        , codeblock 2 [ "pendingTokens.push(this._factory.create(INDENTATION_DECREASED,\"\"));"
+                            , "it.next();"
+                        ]
+                        , "StringBuffer indVal = new StringBuffer(indentation);"
+                        , "int acc = 0;"
+                        , "while(it.hasNext())"
+                        , codeblock 2 [
+                          "acc += it.next();"
+                          , "pendingTokens.push(this._factory.create(INDENTATION_DECREASED,indVal.substring(0,acc)));"
+                        ]
+                        , "t = pendingTokens.pop();"
+                    ]
                 ]
+                , "return t;"
             ]
             , "private Token getNextTokenIgnoringIndentation()"
             , codeblock 2 [ "Token t = null;"
