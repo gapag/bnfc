@@ -114,7 +114,7 @@ javaParserPreamble lang = vcat [
             ]
             , "else"
             ,codeblock 2 [
-                "LLayoutLexer lale = ll();"
+                lang<>"Lexer lale = ll();"
                 , "if(lale.isIgnoringIndentation() && lale.isIndentation(t))"
                 , codeblock 2 [
                   "this.consume();"
