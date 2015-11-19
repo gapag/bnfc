@@ -439,7 +439,6 @@ checkRule cf (Rule (f,_) cat rhs)
    badNil      = isNilFun f   && not (isList c && null cs)
    badOne      = isOneFun f   && not (isList c && cs == [catOfList c])
    -- 0. isConsFun f returns true because f = (:)
-   -- 1. isList returns true for both ListCat and IndentationEnterCat
    -- 2. catOfList [c] = c;  catOfList IndentationEnter [c] = c
    badCons     = isConsFun f  && not ((isList c && cs == [catOfList c, c])
                               || (isIndentationEnter c && cs == [c', lc]))

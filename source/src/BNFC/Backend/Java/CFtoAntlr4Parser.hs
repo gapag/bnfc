@@ -126,10 +126,6 @@ javaParserPreamble lang = vcat [
                 , "if(this._buildParseTrees && t.getTokenIndex() == -1)"
                 , codeblock 2 ["this._ctx.addErrorNode(t);"]
                 ]
-
-
-
-
             ]
 
             , "return t;"

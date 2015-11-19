@@ -67,13 +67,14 @@ cf2JavaPrinter tm packageBase packageAbsyn cf =
    [
     header,
     prEntryPoints packageAbsyn cf,
-    unlines (map (prData tm packageAbsyn user) groups),
+    unlines (map (prData tm packageAbsyn user indented) groups),
     unlines (map (shData tm packageAbsyn user) groups),
     footer
    ]
   where
     user = [n | (n,_) <- tokenPragmas cf]
     groups = fixCoercions (filter (\(c ,_)-> not $ isIndentationEnter c) $ ruleGroupsInternals cf)
+    indented = fst $ unzip $ fixCoercions ([(c,v) | (c,v)<- ruleGroupsInternals cf, isIndentationEnter c])
     integerType = tm "Integer" []
     doubleType  = tm "Double" []
     header = unlines [
@@ -88,7 +89,7 @@ cf2JavaPrinter tm packageBase packageAbsyn cf =
       "  //You may wish to change the parentheses used in precedence.",
       "  private static final String _L_PAREN = new String(\"(\");",
       "  private static final String _R_PAREN = new String(\")\");",
-      prRender
+      prRender indented
       ]
     footer = unlines [ --later only include used categories
       "  private static void pp(" ++ integerType ++ " n, int _i_) { buf_.append(n); buf_.append(\" \"); }",
@@ -128,61 +129,81 @@ cf2JavaPrinter tm packageBase packageAbsyn cf =
       ]
 
 --An extremely simple renderer for terminals.
-prRender :: String
-prRender = unlines
-  [
-      "  //You may wish to change render",
-      "  private static void render(String s)",
-      "  {",
-      "    if (s.equals(\"{\"))",
-      "    {",
-      "       buf_.append(\"\\n\");",
-      "       indent();",
-      "       buf_.append(s);",
-      "       _n_ = _n_ + INDENT_WIDTH;",
-      "       buf_.append(\"\\n\");",
-      "       indent();",
-      "    }",
-      "    else if (s.equals(\"(\") || s.equals(\"[\"))",
-      "       buf_.append(s);",
-      "    else if (s.equals(\")\") || s.equals(\"]\"))",
-      "    {",
-      "       backup();",
-      "       buf_.append(s);",
-      "       buf_.append(\" \");",
-      "    }",
-      "    else if (s.equals(\"}\"))",
-      "    {",
-      "       int t;",
-      "       _n_ = _n_ - INDENT_WIDTH;",
-      "       for(t=0; t<INDENT_WIDTH; t++) {",
-      "         backup();",
-      "       }",
-      "       buf_.append(s);",
-      "       buf_.append(\"\\n\");",
-      "       indent();",
-      "    }",
-      "    else if (s.equals(\",\"))",
-      "    {",
-      "       backup();",
-      "       buf_.append(s);",
-      "       buf_.append(\" \");",
-      "    }",
-      "    else if (s.equals(\";\"))",
-      "    {",
-      "       backup();",
-      "       buf_.append(s);",
-      "       buf_.append(\"\\n\");",
-      "       indent();",
-      "    }",
-      "    else if (s.equals(\"\")) return;",
-      "    else",
-      "    {",
-      "       buf_.append(s);",
-      "       buf_.append(\" \");",
-      "    }",
-      "  }"
-  ]
+prRender :: [Cat] -> String
+prRender c = unlines lines
+  where
+    lines = if null c
+        then [
+          "  //You may wish to change render",
+          "  private static void render(String s)",
+          "  {",
+          "    if (s.equals(\"{\"))",
+          "    {",
+          "       buf_.append(\"\\n\");",
+          "       indent();",
+          "       buf_.append(s);",
+          "       _n_ = _n_ + INDENT_WIDTH;",
+          "       buf_.append(\"\\n\");",
+          "       indent();",
+          "    }",
+          "    else if (s.equals(\"(\") || s.equals(\"[\"))",
+          "       buf_.append(s);",
+          "    else if (s.equals(\")\") || s.equals(\"]\"))",
+          "    {",
+          "       backup();",
+          "       buf_.append(s);",
+          "       buf_.append(\" \");",
+          "    }",
+          "    else if (s.equals(\"}\"))",
+          "    {",
+          "       int t;",
+          "       _n_ = _n_ - INDENT_WIDTH;",
+          "       for(t=0; t<INDENT_WIDTH; t++) {",
+          "         backup();",
+          "       }",
+          "       buf_.append(s);",
+          "       buf_.append(\"\\n\");",
+          "       indent();",
+          "    }",
+          "    else if (s.equals(\",\"))",
+          "    {",
+          "       backup();",
+          "       buf_.append(s);",
+          "       buf_.append(\" \");",
+          "    }",
+          "    else if (s.equals(\";\"))",
+          "    {",
+          "       backup();",
+          "       buf_.append(s);",
+          "       buf_.append(\"\\n\");",
+          "       indent();",
+          "    }",
+          "    else if (s.equals(\"\")) return;",
+          "    else",
+          "    {",
+          "       buf_.append(s);",
+          "       buf_.append(\" \");",
+          "    }",
+          "  }"
+        ]
+        else [
+            "  private static void render(String s)",
+            "  {",
+            "    if (s.equals(\",\"))",
+            "    {",
+            "       backup();",
+            "       buf_.append(s);",
+            "       buf_.append(\" \");",
+            "    }",
+            "    else if (s.equals(\"\")) return;",
+            "    else",
+            "    {",
+            "       buf_.append(s);",
+            "       buf_.append(\" \");",
+            "    }",
+            "  }"
+        ]
+
 
 prEntryPoints :: String -> CF -> String
 prEntryPoints packageAbsyn cf =
@@ -213,15 +234,15 @@ prEntryPoints packageAbsyn cf =
     cat' = identCat cat
   prEntryPoint _ = ""
 
-prData :: TypeMapping ->  String ->  [UserDef] -> (Cat, [Rule]) -> String
-prData tm packageAbsyn user (cat, rules) =
+prData :: TypeMapping ->  String ->  [UserDef] -> [Cat] -> (Cat, [Rule]) -> String
+prData tm packageAbsyn user indent (cat, rules) =
  if isList cat
  then unlines
  [
   "  private static void pp(" ++ packageAbsyn ++ "."
       ++ identCat (normCat cat) +++ "foo, int _i_)",
   "  {",
-  render $ nest 5 $ prList tm user cat rules <> "  }"
+  render $ nest 5 $ prList tm user cat' rules <> "  }"
  ]
  else unlines --not a list
  [
@@ -229,8 +250,10 @@ prData tm packageAbsyn user (cat, rules) =
   "  {",
   concat (addElse $ map (prRule packageAbsyn) rules) ++ "  }"
  ]
-  where addElse = map ("    "++). intersperse "else " . filter (not . null) . map (dropWhile isSpace)
-
+  where
+    addElse = map ("    "++). intersperse "else " . filter (not . null) . map (dropWhile isSpace)
+    cat' = if IndentationEnterCat cat `elem` indent then incat else cat
+    incat = IndentationEnterCat cat
 prRule :: String -> Rule -> String
 prRule packageAbsyn r@(Rule fun _c cats) | not (isCoercion fun || isDefinedRule fun) = concat
     [ "    if (foo instanceof" +++ packageAbsyn ++ "." ++ fun ++ ")\n"
@@ -269,18 +292,32 @@ prRule _nm _ = ""
 -- }
 prList :: TypeMapping ->  [UserDef] -> Cat -> [Rule] -> Doc
 prList tm user c rules =
+    preamble $$
     "for (java.util.Iterator<" <> et <> "> it = foo.iterator(); it.hasNext();)"
     $$ codeblock 2
         [ "pp(it.next(), _i_);"
         , "if (it.hasNext()) {"
-        , nest 2 (renderListSepByPrecedence "_i_" renderSep
-            (getSeparatorByPrecedence rules))
+        , hasNextThen
         , "} else {"
-        , nest 2 (renderSep optsep <> ";")
+        , hasNextElse
         , "}"
         ]
    where
-    et = text (tm (show $ normCatOfList c) user)
+    which x y = if isIndentationEnter c then x else y
+    preamble = which (vcat [ "render(\"\\n\");"
+                            , "_n_+=INDENT_WIDTH;"
+                            , "indent();"]) ""
+    hasNextThen = which
+                    (vcat ["render(\"\\n\");","indent();"])
+                    (nest 2 (renderListSepByPrecedence "_i_" renderSep
+                                    (getSeparatorByPrecedence rules)))
+    hasNextElse = which
+                    (vcat [
+                    "_n_-=INDENT_WIDTH;"
+                    , "indent();"
+                    ])
+                    (nest 2 (renderSep optsep <> ";"))
+    et = text (tm (show $ normCatOfList $ catOfIndentedList c) user)
     sep = escapeChars $ getCons rules
     optsep = if hasOneFunc rules then "" else sep
     renderSep x = "render(\"" <> text x <>"\")"
