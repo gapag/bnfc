@@ -304,10 +304,10 @@ javaLexerPreamble =
             , "private final java.util.Deque<Boolean> ignoringIndentation = initIgnoringIndentation();"
             , "private final java.util.Deque<Token> pendingTokens  = initPendingTokens();"
             , "public void increaseIndentation(String d)"
-            , codeblock 2 [ "if(isIgnoringIndentation()) return;"
-                    , "int peeking = nestingDiffs.peekFirst();"
+            , codeblock 2 [
+                    "int peeking = nestingDiffs.peekFirst();"
                     , "if(peeking == -1) nestingDiffs.push(d.length());"
-                    , "else nestingDiffs.push(d.length() - indentationLength());"
+                    , "if(!isIgnoringIndentation()) nestingDiffs.push(d.length() - indentationLength());"
                     , "indentation = new StringBuffer(d);"
                 ]
             , "public int indentationLength()"
@@ -351,33 +351,54 @@ javaLexerPreamble =
             , "public Token nextToken()"
             , codeblock 2 [ "return getNextToken();"]
             , "private Token getNextToken()"
-            , codeblock 2 [ "Token t = null;"
+            , codeblock 2 [
+                "boolean fromPending = false;"
+                ,"Token t = null;"
                 , "if(pendingTokens.size()>0)"
-		, codeblock 2 [ "t = pendingTokens.pop();"]
+		, codeblock 2 [ "t = pendingTokens.pop();"
+		    , "fromPending = true;"]
                 , "else"
-                , codeblock 2 [ "t = super.nextToken();"
-                    , "if(t.getType() == INDENTATION_DECREASED)"
+                , codeblock 2 [ "t = super.nextToken();"]
+                , "if(t.getType() == INDENTATION_DECREASED)"
+                , codeblock 2 [
+                    "if(fromPending) decreaseIndentation();"
+                    , "int diff = indentation.length()-t.getText().length();"
+                    , "if( diff == 0)"
                     , codeblock 2 [
-                        "pendingTokens.push(this._factory.create(INDENTATION,indentation.toString()));"
+                        "// One level indentation decrease. Put an indentation for enclosing scope"
+                       , "pendingTokens.push(this._factory.create(INDENTATION,indentation.toString()));"
                     ]
-                    , "else if (t.getType() == -1)"
-                    ,codeblock 2 [
-                        "pendingTokens.push(t);"
-                        , "pendingTokens.push(t);// twice is better! (Test looks for one more EOF)"
-                        , "java.util.Iterator<Integer> it = nestingDiffs.descendingIterator();"
-                        , "ignoringBottom:"
-                        , codeblock 2 [ "pendingTokens.push(this._factory.create(INDENTATION_DECREASED,\"\"));"
-                            , "it.next();"
-                        ]
-                        , "StringBuffer indVal = new StringBuffer(indentation);"
-                        , "int acc = 0;"
-                        , "while(it.hasNext())"
-                        , codeblock 2 [
-                          "acc += it.next();"
-                          , "pendingTokens.push(this._factory.create(INDENTATION_DECREASED,indVal.substring(0,acc)));"
-                        ]
-                        , "t = pendingTokens.pop();"
+                    , "else if(diff > 0)"
+                    , codeblock 2 [
+                        "// This has been decreased more than expected."
+                        , "// Inject an INDENTATION_DECREASED to go even."
+                        , "String newIndent = indentation.substring((diff));"
+                        , "pendingTokens.push(this._factory.create(INDENTATION,newIndent));"
+                        , "pendingTokens.push(this._factory.create(INDENTATION_DECREASED,newIndent));"
                     ]
+                    , "else"
+                    , codeblock 2 [
+                        "// has not de-indented enough to jump to a lower scope, error"
+                        , "throw new RuntimeException(\"Indentation problem at token \"+t);"
+                    ]
+                ]
+                , "else if (!fromPending && t.getType() == -1)"
+                ,codeblock 2 [
+                    "pendingTokens.push(t);"
+                    , "pendingTokens.push(t);// twice is better! (Test looks for one more EOF)"
+                    , "java.util.Iterator<Integer> it = nestingDiffs.descendingIterator();"
+                    , "ignoringBottom:"
+                    , codeblock 2 [
+                        "it.next();"
+                    ]
+                    , "StringBuffer indVal = new StringBuffer(indentation);"
+                    , "int acc = 0;"
+                    , "while(it.hasNext())"
+                    , codeblock 2 [
+                      "acc += it.next();"
+                      , "pendingTokens.push(this._factory.create(INDENTATION_DECREASED,indVal.substring(0,acc)));"
+                    ]
+                    , "t = pendingTokens.pop();"
                 ]
                 , "return t;"
             ]

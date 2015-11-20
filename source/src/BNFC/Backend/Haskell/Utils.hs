@@ -91,7 +91,7 @@ catToType param cat = maybeParens $ catToType' param cat
     catToType' (Just p) (CoercCat c _) = text c <+> p
     catToType' (Just _) (TokenCat c) = text c
     catToType' (Just p) (ListCat c) = lbrack <> catToType' (Just p) c <> rbrack
-
+    catToType' (Just p) (IndentationEnterCat c) = catToType' (Just p) c
 
 -- | gives you a list of variables usable for pattern matching.
 -- Ex: if you have the rule Aba. S ::= A B A ; with the generated data type

@@ -326,7 +326,7 @@ prList tm user c rules =
 -- >>> prCat "F" (AnonymousTerminal "++")
 --        render("++");
 -- <BLANKLINE>
--- >>> prCat "F" (NonTerminal (Cat "String", "string_"))
+-- >>> prCat "F" (NonTerminal (TokenCat "String", "string_"))
 --        printQuoted(F.string_);
 -- <BLANKLINE>
 -- >>> prCat "F" (NonTerminal (InternalCat, "#_"))
@@ -337,7 +337,7 @@ prList tm user c rules =
 prCat :: Doc -> RhsRuleElement (Cat, Doc) String -> Doc
 prCat _ (AnonymousTerminal t) = nest 7 ("render(\"" <> text(escapeChars t) <> "\");\n")
 prCat _ (IndentationTerminal t) = nest 7 ("render(\"" <> text(escapeChars t) <> "\");\n")
-prCat fnm (NonTerminal (Cat "String", nt))
+prCat fnm (NonTerminal (TokenCat "String", nt))
     = nest 7 ("printQuoted(" <> fnm <> "." <> nt <> ");\n")
 prCat _ (NonTerminal (InternalCat, _)) = empty
 prCat fnm (NonTerminal (cat, nt))
