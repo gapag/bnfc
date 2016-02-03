@@ -598,9 +598,9 @@ javaTest imports
       importfun x    = "import" <+> x <> ".*;"
       lx             = text lexer
       px             = text parser
-      absentity      = text $ show def
+      absentity      = text $ def
       eps            = allEntryPoints cf
-      def            = head eps
+      def            = identCat $ head eps
       showOpts []    = []
       showOpts (x:xs) | normCat x /= x = showOpts xs
                       | otherwise      = text ('p' : identCat x) : showOpts xs

@@ -101,7 +101,7 @@ prVisitor packageAbsyn funs =
              unlines (map prVisitFun funs),
              "  }",
              "",
-             "  public interface CompoundVisitor<Rb, Ro, R, A> {",
+             "  public interface CompoundVisitor<Rb, Ro, R, A> extends Visitor<R,A>{",
              unlines (map prVisitFunDefault funs),
              unlines (map prVisitBefore funs),
              unlines (map prVisitOnwards funs),
@@ -109,19 +109,18 @@ prVisitor packageAbsyn funs =
              "  }"
             ]
     where
-    prVisitFunSig modif funname f inter = "    "++modif++" R "++ funname ++"(" ++ packageAbsyn ++ "." ++ f ++ " p,"++inter++" A arg)"
-    prVisitFun f = (prVisitFunSig "public" "visit" f "") ++ ";"
-    prVisitBefore f = (prVisitFunSig "public" "before" f "") ++ ";"
-    prVisitOnwards f = (prVisitFunSig "public" "onwards" f "R previous,") ++ ";"
-    prVisitAfter f = (prVisitFunSig "public" "after" f "R previous,") ++ ";"
+    prVisitFunSig modif ret funname f inter = "    "++modif+++ret+++ funname ++"(" ++ packageAbsyn ++ "." ++ f ++ " p,"++inter++" A arg)"
+    prVisitFun f = (prVisitFunSig "public" "R" "visit" f "") ++ ";"
+    prVisitBefore f = (prVisitFunSig defaultPublic "Rb" "before" f "") ++ nullBody
+    prVisitOnwards f = (prVisitFunSig defaultPublic "Ro" "onwards" f "Rb previous,") ++ nullBody
+    prVisitAfter f = (prVisitFunSig defaultPublic "R" "after" f "Ro previous,") ++ nullBody
     prVisitFunDefault f = unlines [
-            (prVisitFunSig "default" "visit" f "") ++ "{",
+            (prVisitFunSig defaultPublic "R" "visit" f "") ++ "{",
             "      return this.after(p, this.onwards(p, this.before(p, arg), arg), arg);",
             "    }"
             ]
-
-
-
+    defaultPublic = "default public"
+    nullBody = "{ return null; }"
 
 --Generates classes for a rule, depending on what type of rule it is.
 prRule :: TypeMapping
