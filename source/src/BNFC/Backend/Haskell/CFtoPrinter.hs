@@ -23,6 +23,7 @@ import BNFC.Backend.Haskell.Utils (hsReservedWords)
 import BNFC.CF
 import BNFC.Utils
 import Data.Char(toLower)
+import Data.Either (lefts)
 import Data.List (sortBy)
 import Data.Maybe (fromJust)
 import Text.PrettyPrint
@@ -147,7 +148,7 @@ rules functor cf = unlines $
    ruleOf s = fromJust $ lookupRule s (cfgRules cf)
 
 -- |
--- >>> case_fun False (Cat "A") [("AA", (Cat "AB", [AnonymousTerminal "xxx"]))]
+-- >>> case_fun False (Cat "A") [("AA", (Cat "AB", [Right (Anonymous "xxx")]))]
 -- instance Print A where
 --   prt i e = case e of
 --     AA -> prPrec i 0 (concatD [doc (showString "xxx")])
@@ -165,21 +166,21 @@ case_fun functor cat xs = vcat
 
 --  When writing the Print instance for a category (in case_fun), we have
 -- a different case for each constructor for this category.
--- >>> mkPrintCase False ("AA", (Cat "A", [AnonymousTerminal "xxx"]))
+-- >>> mkPrintCase False ("AA", (Cat "A", [Right (Anonymous "xxx")]))
 -- AA -> prPrec i 0 (concatD [doc (showString "xxx")])
 --
 -- Coercion levels are passed to prPrec
--- >>> mkPrintCase False ("EInt", (CoercCat "Expr" 2, [NonTerminal (TokenCat "Integer")]))
+-- >>> mkPrintCase False ("EInt", (CoercCat "Expr" 2, [Left (TokenCat "Integer")]))
 -- EInt n -> prPrec i 2 (concatD [prt 0 n])
--- >>> mkPrintCase False ("EPlus", (CoercCat "Expr" 1, [NonTerminal (Cat "Expr"), AnonymousTerminal "+", NonTerminal (Cat "Expr")]))
+-- >>> mkPrintCase False ("EPlus", (CoercCat "Expr" 1, [Left (Cat "Expr"), Right (Anonymous "+"), Left (Cat "Expr")]))
 -- EPlus expr0 expr -> prPrec i 1 (concatD [prt 0 expr0, doc (showString "+"), prt 0 expr])
 --
 -- If the AST is a functor, ignore first argument
--- >>> mkPrintCase True ("EInt", (CoercCat "Expr" 2, [NonTerminal (TokenCat "Integer")]))
+-- >>> mkPrintCase True ("EInt", (CoercCat "Expr" 2, [Left (TokenCat "Integer")]))
 -- EInt _ n -> prPrec i 2 (concatD [prt 0 n])
 --
 -- Skip intertal categories
--- >>> mkPrintCase True ("EInternal", (Cat "Expr", [NonTerminal InternalCat, NonTerminal (Cat "Expr")]))
+-- >>> mkPrintCase True ("EInternal", (Cat "Expr", [Left InternalCat, Left (Cat "Expr")]))
 -- EInternal _ expr -> prPrec i 0 (concatD [prt 0 expr])
 mkPrintCase :: Bool -> (Fun, (Cat, RhsRule)) -> Doc
 mkPrintCase functor (f, (cat, rhs)) =
@@ -189,7 +190,7 @@ mkPrintCase functor (f, (cat, rhs)) =
     -- Creating variables names used in pattern matching. In addition to
     -- haskell's reserved words, `e` and `i` are used in the printing function
     -- and should be avoided
-    names = map var (filter (/=InternalCat) $ nonTerminals rhs)
+    names = map var (filter (/=InternalCat) $ lefts rhs)
     variables = map text $ mkNames ("e":"i":hsReservedWords) LowerCase names
     var (ListCat c)  = var c ++ "s"
     var (TokenCat "Ident")   = "id"
@@ -208,15 +209,15 @@ ifList cf cat = render $ nest 2 $ vcat [ mkPrtListCase r | r <- rules ]
 -- | Pattern match on the list constructor and the coercion level
 -- >>> mkPrtListCase (Rule "[]" (ListCat (Cat "Foo")) [])
 -- prtList _ [] = (concatD [])
--- >>> mkPrtListCase (Rule "(:[])" (ListCat (Cat "Foo")) [NonTerminal (Cat "FOO")])
+-- >>> mkPrtListCase (Rule "(:[])" (ListCat (Cat "Foo")) [Left (Cat "FOO")])
 -- prtList _ [x] = (concatD [prt 0 x])
--- >>> mkPrtListCase (Rule "(:)" (ListCat (Cat "Foo")) [NonTerminal (Cat "Foo"), NonTerminal (ListCat (Cat "Foo"))])
+-- >>> mkPrtListCase (Rule "(:)" (ListCat (Cat "Foo")) [Left (Cat "Foo"), Left (ListCat (Cat "Foo"))])
 -- prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 -- >>> mkPrtListCase (Rule "[]" (ListCat (CoercCat "Foo" 2)) [])
 -- prtList 2 [] = (concatD [])
--- >>> mkPrtListCase (Rule "(:[])" (ListCat (CoercCat "Foo" 2)) [NonTerminal (CoercCat "Foo" 2)])
+-- >>> mkPrtListCase (Rule "(:[])" (ListCat (CoercCat "Foo" 2)) [Left (CoercCat "Foo" 2)])
 -- prtList 2 [x] = (concatD [prt 2 x])
--- >>> mkPrtListCase (Rule "(:)" (ListCat (CoercCat "Foo" 2)) [NonTerminal (CoercCat "Foo" 2), NonTerminal (ListCat (CoercCat "Foo" 2))])
+-- >>> mkPrtListCase (Rule "(:)" (ListCat (CoercCat "Foo" 2)) [Left (CoercCat "Foo" 2), Left (ListCat (CoercCat "Foo" 2))])
 -- prtList 2 (x:xs) = (concatD [prt 2 x, prt 2 xs])
 mkPrtListCase :: Rule -> Doc
 mkPrtListCase (Rule f (ListCat c) rhs)
@@ -260,21 +261,21 @@ compareRules _ _ = EQ
 
 
 -- |
--- >>> mkRhs ["expr1", "n", "expr2"] [NonTerminal (Cat "Expr"), AnonymousTerminal "-", NonTerminal (TokenCat "Integer"), NonTerminal (Cat "Expr")]
+-- >>> mkRhs ["expr1", "n", "expr2"] [Left (Cat "Expr"), Right (Anonymous "-"), Left (TokenCat "Integer"), Left (Cat "Expr")]
 -- (concatD [prt 0 expr1, doc (showString "-"), prt 0 n, prt 0 expr2])
 --
 -- Coercions on the right hand side should be passed to prt:
--- >>> mkRhs ["expr1"] [NonTerminal (CoercCat "Expr" 2)]
+-- >>> mkRhs ["expr1"] [Left (CoercCat "Expr" 2)]
 -- (concatD [prt 2 expr1])
--- >>> mkRhs ["expr2s"] [NonTerminal (ListCat (CoercCat "Expr" 2))]
+-- >>> mkRhs ["expr2s"] [Left (ListCat (CoercCat "Expr" 2))]
 -- (concatD [prt 2 expr2s])
 mkRhs :: [String] -> RhsRule -> Doc
 mkRhs args its =
     parens ("concatD" <+> brackets (hsep (punctuate "," (mk args its))))
  where
-  mk args (NonTerminal InternalCat : items) = mk args items
-  mk (arg:args) (NonTerminal c  : items)    = (prt c <+> text arg) : mk args items
-  mk args       (AnonymousTerminal s : items)    = ("doc (showString" <+> text (show s) <> ")") : mk args items
+  mk args (Left InternalCat : items) = mk args items
+  mk (arg:args) (Left c  : items)    = (prt c <+> text arg) : mk args items
+  mk args       (Right (Anonymous s) : items)    = ("doc (showString" <+> text (show s) <> ")") : mk args items
   mk _          _                    = []
   prt c = "prt" <+> integer (precCat c)
 

@@ -356,9 +356,9 @@ prRule namespace maybeElse r@(Rule fun _c cats)
         _  -> unlinesInline $ map (prCat fnm) (zip (fixOnes (numProps [] cats)) (map getPrec cats))
       fnm = '_' : map toLower fun
 
-      getPrec (NonTerminal c) = precCat c
-      getPrec (AnonymousTerminal  {})  = 0
-      getPrec (IndentationTerminal  {})  = 0
+      getPrec (Left c) = precCat c
+      getPrec (Right {})  = 0
+
 prRule _nm _ _ = ""
 
 prList :: [UserDef] -> Cat -> [Rule] -> String
@@ -382,9 +382,12 @@ prList _ _ rules = unlinesInline [
 
 prCat fnm (c, p) =
   case c of
-    IndentationTerminal t -> "        Render(\"" ++ escapeChars t ++ "\");"
-    AnonymousTerminal t -> "        Render(\"" ++ escapeChars t ++ "\");"
-    NonTerminal nt
+    Right x -> case x of
+                Anonymous t -> rndr t
+                Indentation t -> rndr t 
+                where 
+                  rndr t = "        Render(\"" ++ escapeChars t ++ "\");"
+    Left nt
       | "string" `isPrefixOf` nt -> "        PrintQuoted(" ++ fnm ++ "." ++ nt ++ ");"
       | isInternalVar nt         -> ""
       | otherwise                -> "        PrintInternal(" ++ fnm ++ "." ++ nt ++ ", " ++ show p ++ ");"
@@ -427,7 +430,7 @@ shRule namespace (Rule fun _c cats)
     rparen | allTerms cats = ""
            | otherwise     = "        Render(\")\");"
     allTerms [] = True
-    allTerms ((NonTerminal {}):_) = False
+    allTerms ((Left {}):_) = False
     allTerms (_:zs) = allTerms zs
     fnm = '_' : map toLower fun
 shRule _nm _ = ""
@@ -444,9 +447,8 @@ shList _ _ _rules = unlinesInline [
 
 shCat fnm c =
   case c of
-    IndentationTerminal {} -> ""
-    AnonymousTerminal {} -> ""
-    NonTerminal nt
+    Right {} -> ""
+    Left nt
       | "list" `isPrefixOf` nt -> unlinesInline [
           "        Render(\"[\");",
           "        ShowInternal(" ++ fnm ++ "." ++ nt ++ ");",

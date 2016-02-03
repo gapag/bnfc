@@ -26,7 +26,7 @@ import BNFC.CF
 import BNFC.Options
 import BNFC.TypeChecker
 import BNFC.Utils
-
+import Control.Arrow (left)
 import Control.Monad.State
 import Data.Char
 import Data.Either (partitionEithers)
@@ -111,7 +111,7 @@ getCFP cnf (Abs.Grammar defs0) = do
     let rules = inlineDelims rules0
         cf0 = revs srt
         srt = let literals           = nub [lit | xs <- map rhsRule rules,
-                                                     NonTerminal (Cat lit) <- xs,
+                                                     Left (Cat lit) <- xs,
                                                      lit `elem` specialCatsP]
                   (symbols,keywords) = partition notIdent reservedWords
                   -- this determines whether a token in quotes in the grammar is
@@ -119,8 +119,8 @@ getCFP cnf (Abs.Grammar defs0) = do
                   -- or a keyword.
                   notIdent s         = null s || not (isAlpha (head s)) || any (not . isIdentRest) s
                   isIdentRest c      = isAlphaNum c || c == '_' || c == '\''
-                  reservedWords      = nub $ [t | r <- rules, AnonymousTerminal t <- rhsRule r]
-                                            ++ [t | r <- rules, IndentationTerminal t <- rhsRule r]
+                  reservedWords      = nub $ [t | r <- rules, Right (Anonymous t) <- rhsRule r]
+                                            ++ [t | r <- rules, Right (Indentation t) <- rhsRule r]
               in CFG pragma literals symbols keywords [] rules
     case mapMaybe (checkRule (cfp2cf cf0)) (cfgRules cf0) of
       [] -> return ()
@@ -137,7 +137,7 @@ getCFP cnf (Abs.Grammar defs0) = do
 markTokenCategories :: CFP -> Err CFP
 markTokenCategories cf@CFG{..} = return $ cf { cfgRules = newRules }
   where
-    newRules = [ Rule f (mark c) (map (applyOnNonTerminal mark) rhs) | Rule f c rhs <- cfgRules ]
+    newRules = [ Rule f (mark c) (map (left mark) rhs) | Rule f c rhs <- cfgRules ]
     tokenCatNames = [ n | TokenReg n _ _ <- cfgPragmas ] ++ specialCatsP
     mark = toTokenCat tokenCatNames
 
@@ -166,8 +166,8 @@ removeDelims xs = (ys ++ map delimToSep ds,
     isDelim _ = False
 
     inlineDelim :: Abs.Def -> RhsRuleElement Cat String ->  RhsRule
-    inlineDelim (Abs.Delimiters cat open close _ _) (NonTerminal c)
-      | c == ListCat (transCat cat) = [AnonymousTerminal open, NonTerminal c, AnonymousTerminal close]
+    inlineDelim (Abs.Delimiters cat open close _ _) (Left c)
+      | c == ListCat (transCat cat) = [Right (Anonymous open), Left c, Right (Anonymous close)]
     inlineDelim _ x = [x]
 
     inlineDelim' :: Abs.Def -> RuleP -> RuleP
@@ -196,7 +196,7 @@ transDef x = case x of
    [Right $
     Rule (transLabel label)
         (transCat cat)
-        (NonTerminal InternalCat:concatMap transItem items)]
+        (Left InternalCat:concatMap transItem items)]
  Abs.Separator size ident str -> map  (Right . cf2cfpRule) $ separatorRules size ident str
  Abs.Terminator size ident str -> map  (Right . cf2cfpRule) $ terminatorRules size ident str
  -- Indentation works similarly as termination. This was developed by abduction
@@ -217,25 +217,25 @@ delimiterRules a0 l r (Abs.SepTerm  "") size = delimiterRules a0 l r Abs.SepNone
 delimiterRules a0 l r (Abs.SepSepar "") size = delimiterRules a0 l r Abs.SepNone size
 delimiterRules a0 l r sep size = [
    -- recognizing a single element
-  Rule "(:[])"  (strToCat a')  (NonTerminal a : termin), -- optional terminator/separator
+  Rule "(:[])"  (strToCat a')  (Left a : termin), -- optional terminator/separator
 
   -- glueing two sublists
-  Rule "(++)"   (strToCat a')  [NonTerminal (strToCat a'), NonTerminal (strToCat a')],
+  Rule "(++)"   (strToCat a')  [Left (strToCat a'), Left (strToCat a')],
 
    -- starting on either side with a delimiter
-  Rule "[]"     (strToCat c)   [AnonymousTerminal l],
+  Rule "[]"     (strToCat c)   [Right (Anonymous l)],
   Rule (if optFinal then "(:[])" else
                          "[]")
-                (strToCat d)   ([NonTerminal a | optFinal] ++ [AnonymousTerminal r]),
+                (strToCat d)   ([Left a | optFinal] ++ [Right (Anonymous r)]),
 
    -- gathering chains
-  Rule "(++)"   (strToCat c)   [NonTerminal (strToCat c), NonTerminal (strToCat a')],
-  Rule "(++)"   (strToCat d)   [NonTerminal (strToCat a'), NonTerminal (strToCat d)],
+  Rule "(++)"   (strToCat c)   [Left (strToCat c), Left (strToCat a')],
+  Rule "(++)"   (strToCat d)   [Left (strToCat a'), Left (strToCat d)],
 
    -- finally, put together left and right chains
-  Rule "(++)"   as  [NonTerminal (strToCat c),NonTerminal (strToCat d)]] ++ [
+  Rule "(++)"   as  [Left (strToCat c),Left (strToCat d)]] ++ [
   -- special rule for the empty list if necessary
-  Rule "[]"     as  [AnonymousTerminal l,AnonymousTerminal r] | optEmpty]
+  Rule "[]"     as  [Right (Anonymous l),Right (Anonymous r)] | optEmpty]
  where a = transCat a0
        as = ListCat a
        a' = '@':'@':show a
@@ -243,8 +243,8 @@ delimiterRules a0 l r sep size = [
        d  = '@':'}':show a
        -- optionally separated concat. of x and y categories.
        termin = case sep of
-                  Abs.SepSepar t -> [AnonymousTerminal t]
-                  Abs.SepTerm  t -> [AnonymousTerminal t]
+                  Abs.SepSepar t -> [Right (Anonymous t)]
+                  Abs.SepTerm  t -> [Right (Anonymous t)]
                   _ -> []
        optFinal = case (sep,size) of
          (Abs.SepSepar _,_) -> True
@@ -258,8 +258,8 @@ delimiterRules a0 l r sep size = [
 
 separatorRules :: Abs.MinimumSize -> Abs.Cat -> String -> [Rule]
 separatorRules size c s = if null s then terminatorRules size c s else ifEmpty [
-  Rule "(:[])" cs [NonTerminal c'],
-  Rule "(:)"   cs [NonTerminal c', AnonymousTerminal s, NonTerminal cs]
+  Rule "(:[])" cs [Left c'],
+  Rule "(:)"   cs [Left  c', Right $ Anonymous s, Left  cs]
   ]
  where
    c' = transCat c
@@ -271,14 +271,14 @@ separatorRules size c s = if null s then terminatorRules size c s else ifEmpty [
 terminatorRules :: Abs.MinimumSize -> Abs.Cat -> String -> [Rule]
 terminatorRules size c s = [
   ifEmpty,
-  Rule "(:)" cs ( NonTerminal c' : s' [NonTerminal cs])
+  Rule "(:)" cs ( Left c' : s' [Left cs])
   ]
  where
    c' = transCat c
    cs = ListCat c'
-   s' its = if null s then its else AnonymousTerminal s : its
+   s' its = if null s then its else Right (Anonymous s) : its
    ifEmpty = if size == Abs.MNonempty
-                then Rule "(:[])" cs (NonTerminal c' : if null s then [] else [AnonymousTerminal s])
+                then Rule "(:[])" cs (Left c' : if null s then [] else [Right $ Anonymous s])
                 else Rule "[]" cs []
 
 indentationRules :: [Abs.Cat] -> [Rule]
@@ -287,15 +287,15 @@ indentationRules ids = (concatMap indentationRule ids)
 indentationRule :: Abs.Cat -> [Rule]
 indentationRule c =
     [Rule "[]" cs []
-    , Rule "(:)" cs [IndentationTerminal "="
-                    , NonTerminal c'
-                    , NonTerminal cs
+    , Rule "(:)" cs [Right (Indentation "=")
+                    , Left c'
+                    , Left cs
                     ]
     ]
-    ++ [Rule "(:)"  cs' [IndentationTerminal "+"
-                          , NonTerminal c'
-                          , NonTerminal cs
-                          , IndentationTerminal "-"
+    ++ [Rule "(:)"  cs' [Right $ Indentation "+"
+                          , Left c'
+                          , Left cs
+                          , Right $ Indentation "-"
                           ]
     ]
     where
@@ -306,9 +306,9 @@ indentationRule c =
 
 coercionRules :: Abs.Ident -> Integer -> [Rule]
 coercionRules (Abs.Ident c) n =
-   Rule "_" (Cat c)            [NonTerminal (CoercCat c 1)] :
-  [Rule "_" (CoercCat c (i-1)) [NonTerminal (CoercCat c i)] | i <- [2..n]] ++
-  [Rule "_" (CoercCat c n)     [AnonymousTerminal "(", NonTerminal (Cat c), AnonymousTerminal ")"]]
+   Rule "_" (Cat c)            [Left (CoercCat c 1)] :
+  [Rule "_" (CoercCat c (i-1)) [Left (CoercCat c i)] | i <- [2..n]] ++
+  [Rule "_" (CoercCat c n)     [Right $ Anonymous "(", Left (Cat c), Right $ Anonymous  ")"]]
 
 ebnfRules :: Abs.Ident -> [Abs.RHS] -> [Rule]
 ebnfRules (Abs.Ident c) rhss =
@@ -331,8 +331,8 @@ ebnfRules (Abs.Ident c) rhss =
 -- is equivalent to
 --   Foo. S ::= "foo" "bar"
 transItem :: Abs.Item -> RhsRule
-transItem (Abs.Terminal str) = [AnonymousTerminal w | w <- words str]
-transItem (Abs.NTerminal cat) = [NonTerminal (transCat cat)]
+transItem (Abs.Terminal str) = [Right $ Anonymous  w | w <- words str]
+transItem (Abs.NTerminal cat) = [Left (transCat cat)]
 
 transCat :: Abs.Cat -> Cat
 transCat x = case x of
@@ -429,12 +429,12 @@ checkRule cf (Rule (f,_) cat rhs)
                              ", appearing in rule\n    " ++ s
   | otherwise      = Nothing
  where
-   s  = f ++ "." +++ show cat +++ "::=" +++ unwords (map shRhs rhs) -- Todo: consider using the show instance of Rule
+   s  = f ++ "." +++ show cat +++ "::=" +++ unwords (map (either show show) rhs) -- Todo: consider using the show instance of Rule
    shRhs (NonTerminal a) = show a
    shRhs (IndentationTerminal a) = show a
    shRhs (AnonymousTerminal a) = show a
    c  = normCat cat
-   cs = [normCat c | NonTerminal c <- rhs]
+   cs = [normCat c | Left c <- rhs]
    badCoercion = isCoercion f && [c] /= cs
    badNil      = isNilFun f   && not (isList c && null cs)
    badOne      = isOneFun f   && not (isList c && cs == [catOfList c])
@@ -449,12 +449,12 @@ checkRule cf (Rule (f,_) cat rhs)
    badSpecial  = elem c [ Cat x | x <- specialCatsP] && not (isCoercion f)
 
    badMissing  = not (null missing)
-   missing     = filter nodef [show c | NonTerminal c <- rhs]
+   missing     = filter nodef [show c | Left c <- rhs]
    nodef t = t `notElem` defineds
    defineds =
     show InternalCat : tokenNames cf ++ specialCatsP ++ map (show . valCat) (cfgRules cf)
    badTypeName = not (null badtypes)
-   badtypes = filter isBadType $ cat : [c | NonTerminal c <- rhs]
+   badtypes = filter isBadType $ cat : [c | Left c <- rhs]
    isBadType (ListCat c) = isBadType c
    isBadType (IndentationEnterCat c) = isBadType c
    isBadType InternalCat = False

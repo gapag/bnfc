@@ -137,9 +137,9 @@ mkRhs args its =
     [] -> ""
     str -> "c2s '(' >> " ++ str ++ " >> c2s ')'"
  where
-  mk args (NonTerminal InternalCat : items)      = mk args items
-  mk (arg:args) (NonTerminal c : items)  = (showsFun c +++ arg)        : mk args items
-  mk args       (AnonymousTerminal _ : items) = mk args items
+  mk args (Left InternalCat : items)      = mk args items
+  mk (arg:args) (Left c : items)  = (showsFun c +++ arg)        : mk args items
+  mk args       (Right (Anonymous _) : items) = mk args items
   mk _ _ = []
 
 showsFun :: Cat -> String

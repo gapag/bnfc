@@ -354,13 +354,13 @@ generatePatterns cf env r _ = case rhsRule r of
   its -> (unwords (map mkIt its), metas its)
  where
    mkIt i = case i of
-     NonTerminal c -> case lookup (show c) env of
+     Left c -> case lookup (show c) env of
        Just x | not (isPositionCat cf c) -> x
        _ -> typeName (identCat c)
-     IndentationTerminal s -> lup s
-     AnonymousTerminal s -> lup s
+     Right (Indentation s) -> lup s
+     Right (Anonymous s) -> lup s
      where lup s = fromMaybe s (lookup s env)
-   metas its = [('$': show i,revert c) | (i,NonTerminal c) <- zip [1 :: Int ..] its]
+   metas its = [('$': show i,revert c) | (i,Left c) <- zip [1 :: Int ..] its]
 
    -- notice: reversibility with push_back vectors is the opposite
    -- of right-recursive lists!

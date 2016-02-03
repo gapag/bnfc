@@ -40,7 +40,7 @@ cf2cons cf =
         } | (cat,rules) <- cf2data cf, (fun,cats) <- rules]
     ++ [ Constructor
         { consCat = cat, consFun = show cat, consPrec = 0
-        , consVars = [(Cat "String","str")], consRhs = [NonTerminal (Cat "String")]
+        , consVars = [(Cat "String","str")], consRhs = [Left (Cat "String")]
         } | cat <- specialCats cf]
   where
     mkVars cats = mkUnique (map catToVar cats) (0 :: Int)

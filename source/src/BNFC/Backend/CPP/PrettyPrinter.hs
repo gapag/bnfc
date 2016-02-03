@@ -40,7 +40,7 @@ cf2CPPPrinter useStl inPackage cf =
 
 positionRules :: CF -> [(Cat,[Rule])]
 positionRules cf =
-      [(cat,[Rule (show cat) cat [NonTerminal catString, NonTerminal catInteger]]) |
+      [(cat,[Rule (show cat) cat [Left catString, Left catInteger]]) |
         cat <- filter (isPositionCat cf) $ fst (unzip (tokenPragmas cf))]
 
 {- **** Header (.H) File Methods **** -}
@@ -504,12 +504,12 @@ prPrintRule inPackage r@(Rule fun _ cats) | isProperLabel fun = unlines
 prPrintRule _ _ = ""
 
 --This goes on to recurse to the instance variables.
-prPrintCat :: String -> RhsRuleElement (Cat, Doc) String -> String
-prPrintCat _ (AnonymousTerminal t) = "  render(" ++ t' ++ ");\n"
+prPrintCat :: String -> RhsRuleElement (Cat, Doc) UserTerminal -> String
+prPrintCat _ (Right (Anonymous t)) = "  render(" ++ t' ++ ");\n"
   where t' = snd (renderCharOrString t)
-prPrintCat _ (IndentationTerminal t) = "  render(" ++ t' ++ ");\n"
+prPrintCat _ (Right (Indentation t)) = "  render(" ++ t' ++ ");\n"
     where t' = snd (renderCharOrString t)
-prPrintCat fnm (NonTerminal (c, nt))
+prPrintCat fnm (Left (c, nt))
   | isTokenCat c  = "  visit" ++ funName c ++ "(" ++ fnm ++ "->" ++ render nt ++ ");\n"
   | isList c            = "  if(" ++ fnm ++ "->" ++ render nt ++ ") {" ++ accept ++ "}\n"
   | otherwise           = "  " ++ accept ++ "\n"
@@ -604,16 +604,16 @@ prShowRule (Rule fun _ cats) | isProperLabel fun = concat
       then insertSpaces xs
       else x : "  bufAppend(' ');\n" : insertSpaces xs
     allTerms [] = True
-    allTerms (NonTerminal _:_) = False
+    allTerms (Left _:_) = False
     allTerms (_:zs) = allTerms zs
     fnm = "p" --other names could cause conflicts
 prShowRule _ = ""
 
 -- This recurses to the instance variables of a class.
-prShowCat :: String -> RhsRuleElement (Cat, Doc) String -> String
-prShowCat _ (AnonymousTerminal _)               = ""
-prShowCat _ (IndentationTerminal _)               = ""
-prShowCat fnm (NonTerminal (cat,nt))
+prShowCat :: String -> RhsRuleElement (Cat, Doc) UserTerminal -> String
+prShowCat _ (Right (Anonymous _))               = ""
+prShowCat _ (Right (Indentation _))               = ""
+prShowCat fnm (Left (cat,nt))
   | isTokenCat cat              =
     "  visit" ++ funName cat ++ "(" ++ fnm ++ "->" ++ render nt ++ ");\n"
   | cat == InternalCat                = "/* Internal Category */\n"

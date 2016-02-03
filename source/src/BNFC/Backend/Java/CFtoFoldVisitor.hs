@@ -24,6 +24,7 @@ import BNFC.CF
 import BNFC.Backend.Java.Utils(isBasicType, TypeMapping)
 import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
+import Data.Either (lefts)
 import BNFC.PrettyPrint
 
 cf2FoldVisitor :: TypeMapping -> String -> String -> CF -> String
@@ -64,7 +65,7 @@ prRule tm packageAbsyn user _ (Rule fun _ cats)
   ++ ["      return r;",
       "    }"]
    where
-    cats' = filter ((/= InternalCat) . fst) (nonTerminals (numVars cats))
+    cats' = filter ((/= InternalCat) . fst) (lefts (numVars cats))
     cls = packageAbsyn ++ "." ++ fun
     visitVars = lines $ render $ vcat $ map (prCat tm user) cats'
 prRule _ _ _ _ _ = ""

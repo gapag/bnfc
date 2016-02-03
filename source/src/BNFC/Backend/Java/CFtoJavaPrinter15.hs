@@ -53,6 +53,7 @@ import BNFC.Backend.Java.Utils(TypeMapping)
 import BNFC.Utils ( (+++) )
 import Data.List
 import Data.Char ( toLower, isSpace )
+import Data.Either (lefts)
 import BNFC.PrettyPrint
 
 --Produces the PrettyPrinter class.
@@ -280,7 +281,7 @@ prRule _nm _ = ""
 -- |
 --
 -- >>> let lfoo = ListCat (Cat "Foo")
--- >>> prList [] lfoo [Rule "[]" lfoo [], Rule "(:)" lfoo [NonTerminal (Cat "Foo"), AnonymousTerminal ".", NonTerminal lfoo]]
+-- >>> prList [] lfoo [Rule "[]" lfoo [], Rule "(:)" lfoo [Left (Cat "Foo"), Right (Anonymous "."), Left lfoo]]
 -- for (java.util.Iterator<Foo> it = foo.iterator(); it.hasNext();)
 -- {
 --   pp(it.next(), _i_);
@@ -323,24 +324,24 @@ prList tm user c rules =
     renderSep x = "render(\"" <> text x <>"\")"
 
 -- |
--- >>> prCat "F" (AnonymousTerminal "++")
+-- >>> prCat "F" (Right (Anonymous "++"))
 --        render("++");
 -- <BLANKLINE>
--- >>> prCat "F" (NonTerminal (TokenCat "String", "string_"))
+-- >>> prCat "F" (Left (TokenCat "String", "string_"))
 --        printQuoted(F.string_);
 -- <BLANKLINE>
--- >>> prCat "F" (NonTerminal (InternalCat, "#_"))
+-- >>> prCat "F" (Left (InternalCat, "#_"))
 -- <BLANKLINE>
--- >>> prCat "F" (NonTerminal (Cat "Abc", "abc_"))
+-- >>> prCat "F" (Left (Cat "Abc", "abc_"))
 --        pp(F.abc_, 0);
 -- <BLANKLINE>
-prCat :: Doc -> RhsRuleElement (Cat, Doc) String -> Doc
-prCat _ (AnonymousTerminal t) = nest 7 ("render(\"" <> text(escapeChars t) <> "\");\n")
-prCat _ (IndentationTerminal t) = nest 7 ("render(\"" <> text(escapeChars t) <> "\");\n")
-prCat fnm (NonTerminal (TokenCat "String", nt))
+prCat :: Doc -> RhsRuleElement (Cat, Doc) UserTerminal -> Doc
+prCat _ (Right (Anonymous t)) = nest 7 ("render(\"" <> text(escapeChars t) <> "\");\n")
+prCat _ (Right (Indentation t)) = nest 7 ("render(\"" <> text(escapeChars t) <> "\");\n")
+prCat fnm (Left (TokenCat "String", nt))
     = nest 7 ("printQuoted(" <> fnm <> "." <> nt <> ");\n")
-prCat _ (NonTerminal (InternalCat, _)) = empty
-prCat fnm (NonTerminal (cat, nt))
+prCat _ (Left (InternalCat, _)) = empty
+prCat fnm (Left (cat, nt))
     = nest 7 ("pp(" <> fnm <> "." <> nt <> ", " <> integer (precCat cat) <> ");\n")
 
 --The following methods generate the Show function.
@@ -376,12 +377,12 @@ shRule packageAbsyn (Rule fun _c cats) | not (isCoercion fun || isDefinedRule fu
                      , rparen ]
     cats' = if allTerms cats
         then ""
-        else concatMap (render . shCat (text fnm)) (nonTerminals (numVars cats))
+        else concatMap (render . shCat (text fnm)) (lefts (numVars cats))
     (lparen, rparen) = if allTerms cats
         then ("","")
         else ("       render(\"(\");\n","       render(\")\");\n")
     allTerms [] = True
-    allTerms ((NonTerminal {}):_) = False
+    allTerms ((Left {}):_) = False
     allTerms (_:zs) = allTerms zs
     fnm = '_' : map toLower fun
 shRule _nm _ = ""

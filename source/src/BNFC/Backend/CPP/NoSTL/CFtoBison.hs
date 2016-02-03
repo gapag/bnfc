@@ -291,15 +291,15 @@ generatePatterns cf env r = case rhsRule r of
   its -> (unwords (map mkIt its), metas its)
  where
    mkIt i = case i of
-     NonTerminal c -> case lookup (show c) env of
+     Left c -> case lookup (show c) env of
        Just x -> x
        Nothing -> typeName (identCat c)
-     AnonymousTerminal s -> lup s
-     IndentationTerminal s -> lup s
+     Right (Anonymous s)   -> lup s
+     Right (Indentation s) -> lup s
    lup s = case lookup s env of
              Just x -> x
              Nothing -> s
-   metas its = [revIf c ('$': show i) | (i,NonTerminal c) <- zip [1 :: Int ..] its]
+   metas its = [revIf c ('$': show i) | (i,Left c) <- zip [1 :: Int ..] its]
    revIf c m = if (not (isConsFun (funRule r)) && elem c revs)
                  then ("reverse" ++ (identCat (normCat c)) ++ "(" ++ m ++ ")")
                else m  -- no reversal in the left-recursive Cons rule itself

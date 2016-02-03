@@ -220,9 +220,9 @@ prtRules ((c, r : rs) : xs)
 prtSymbols :: RhsRule -> String
 prtSymbols [] = empty
 prtSymbols xs = foldr ((+++) . p) [] xs
- where p (NonTerminal  r) = nonterminal r --- (prt r)
-       p (AnonymousTerminal r) = terminal    (prt r)
-       p (IndentationTerminal r) = p (AnonymousTerminal r)
+ where p (Left r) = nonterminal r --- (prt r)
+       p (Right (Anonymous r)) = terminal    (prt r)
+       p (Right (Indentation r)) = p (Right AnonymousTerminal r)
 
 
 prt :: String -> String

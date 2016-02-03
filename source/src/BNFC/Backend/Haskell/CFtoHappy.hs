@@ -127,31 +127,31 @@ rulesForHappy absM functor cf = map mkOne $ ruleGroups cf
 
 -- | For every non-terminal, we construct a set of rules. A rule is a sequence
 -- of terminals and non-terminals, and an action to be performed
--- >>> constructRule "Foo" False [] (Rule "EPlus" (Cat "Exp") [NonTerminal (Cat "Exp"), AnonymousTerminal "+", NonTerminal (Cat "Exp")])
+-- >>> constructRule "Foo" False [] (Rule "EPlus" (Cat "Exp") [Left (Cat "Exp"), Right (Anonymous "+"), Left (Cat "Exp")])
 -- ("Exp '+' Exp","Foo.EPlus $1 $3")
 --
 -- If we're using functors, it adds an void value:
--- >>> constructRule "Foo" True [] (Rule "EPlus" (Cat "Exp") [NonTerminal (Cat "Exp"), AnonymousTerminal "+", NonTerminal (Cat "Exp")])
+-- >>> constructRule "Foo" True [] (Rule "EPlus" (Cat "Exp") [Left (Cat "Exp"), Right (Anonymous "+"), Left (Cat "Exp")])
 -- ("Exp '+' Exp","Foo.EPlus () $1 $3")
 --
 -- List constructors should not be prefixed by the abstract module name:
--- >>> constructRule "Foo" False [] (Rule "(:)" (ListCat (Cat "A")) [NonTerminal (Cat "A"), AnonymousTerminal",", NonTerminal (ListCat (Cat "A"))])
+-- >>> constructRule "Foo" False [] (Rule "(:)" (ListCat (Cat "A")) [Left (Cat "A"), Right (Anonymous ","), Left (ListCat (Cat "A"))])
 -- ("A ',' ListA","(:) $1 $3")
--- >>> constructRule "Foo" False [] (Rule "(:[])" (ListCat (Cat "A")) [NonTerminal (Cat "A")])
+-- >>> constructRule "Foo" False [] (Rule "(:[])" (ListCat (Cat "A")) [Left (Cat "A")])
 -- ("A","(:[]) $1")
 --
 -- Coercion are much simpler:
--- >>> constructRule "Foo" True [] (Rule "_" (Cat "Exp") [AnonymousTerminal "(", NonTerminal (Cat "Exp"), AnonymousTerminal ")"])
+-- >>> constructRule "Foo" True [] (Rule "_" (Cat "Exp") [Right (Anonymous "("), Left (Cat "Exp"), Right (Anonymous ")")])
 -- ("'(' Exp ')'","$2")
 --
 -- As an optimization, a pair of list rules [C] ::= "" | C k [C] is
 -- left-recursivized into [C] ::= "" | [C] C k.
 -- This could be generalized to cover other forms of list rules.
--- >>> constructRule "Foo" False [ListCat (Cat "A")] (Rule "(:)" (ListCat (Cat "A")) [NonTerminal (Cat "A"), AnonymousTerminal",", NonTerminal (ListCat (Cat "A"))])
+-- >>> constructRule "Foo" False [ListCat (Cat "A")] (Rule "(:)" (ListCat (Cat "A")) [Left (Cat "A"), Right (Anonymous ","), Left (ListCat (Cat "A"))])
 -- ("ListA A ','","flip (:) $1 $2")
 --
 -- Note that functors don't concern list constructors:
--- >>> constructRule "Abs" True [ListCat (Cat "A")] (Rule "(:)" (ListCat (Cat "A")) [NonTerminal (Cat "A"), AnonymousTerminal",", NonTerminal (ListCat (Cat "A"))])
+-- >>> constructRule "Abs" True [ListCat (Cat "A")] (Rule "(:)" (ListCat (Cat "A")) [Left (Cat "A"), Right (AnonymousTerminal ","), Left (ListCat (Cat "A"))])
 -- ("ListA A ','","flip (:) $1 $2")
 constructRule :: String -> Bool -> [Cat] -> Rule -> (Pattern,Action)
 constructRule absName functor revs r0@(Rule fun cat _) = (pattern, action)
@@ -177,10 +177,10 @@ generatePatterns revs r = case rhsRule r of
   its -> (unwords (map mkIt its), metas its)
  where
    mkIt i = case i of
-     NonTerminal c -> identCat c
-     AnonymousTerminal s -> render (convert s)
-     IndentationTerminal s -> render (convert s)
-   metas its = [revIf c ('$': show i) | (i,NonTerminal c) <- zip [1 ::Int ..] its]
+     Left c -> identCat c
+     Right (Anonymous s) -> render (convert s)
+     Right (Indentation s)-> render (convert s)
+   metas its = [revIf c ('$': show i) | (i,Left c) <- zip [1 ::Int ..] its]
    revIf c m = if not (isConsFun (funRule r)) && elem c revs
                  then "(reverse " ++ m ++ ")"
                  else m  -- no reversal in the left-recursive Cons rule itself

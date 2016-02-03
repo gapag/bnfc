@@ -40,6 +40,7 @@
 module BNFC.Backend.Java.CFtoAntlr4Parser ( cf2AntlrParse ) where
 
 import Data.List
+import Text.PrettyPrint
 import BNFC.CF
 import BNFC.Backend.Java.Utils
 import BNFC.Backend.Common.NamedVariables
@@ -227,7 +228,7 @@ generateAction tm packageAbsyn nt f ms rev
 -- where in the pattern the non-terminal
 -- >>> generatePatterns CF{cfgPragmas = []} 2 [] (Rule "myfun" (Cat "A") [])
 -- (" /* empty */ ",[])
--- >>> generatePatterns CF{cfgPragmas = []} 3 [("def", "_SYMB_1")] (Rule "myfun" (Cat "A") [AnonymousTerminal "def", NonTerminal (Cat "B")])
+-- >>> generatePatterns CF{cfgPragmas = []} 3 [("def", "_SYMB_1")] (Rule "myfun" (Cat "A") [Right (Anonymous "def"), Left (Cat "B")])
 -- ("_SYMB_1 p_3_2=b ",[("p_3_2",B)])
 generatePatterns :: (Cat -> PatternSegment) -> Int -> SymEnv -> Rule -> (Pattern,[MetaVar])
 generatePatterns cs ind env r = case rhsRule r of
@@ -236,7 +237,7 @@ generatePatterns cs ind env r = case rhsRule r of
  where
     mkPattern _ [] = []
     mkPattern n (i:is) = case i of
-        NonTerminal c -> (pre, "p_" ++show ind++"_"++ show (n :: Int) ++ "="++ c', post)
+        Left c -> (pre, "p_" ++show ind++"_"++ show (n :: Int) ++ "="++ c', post)
             : mkPattern (n+1) is
           where
               (pre,c',post) = case c of
@@ -246,18 +247,18 @@ generatePatterns cs ind env r = case rhsRule r of
                   TokenCat "Double"  -> noAction "DOUBLE"
                   TokenCat "String"  -> noAction "STRING"
                   _                  -> cs c
-        AnonymousTerminal s -> case lookup s env of
+        Right (Anonymous s) -> case lookup s env of
             (Just x) -> (noAction x):mkPattern (n+1) is
             (Nothing) -> mkPattern n is
-        IndentationTerminal s -> (noAction k):mkPattern n is
+        Right (Indentation s) -> (noAction k):mkPattern n is
           where k = case s of
                         "+" -> "INDENTATION_INCREASED"
                         "=" -> "INDENTATION"
                         "-" -> "INDENTATION_DECREASED"
                         _ -> ""
     metas its = [("p_" ++ show ind ++"_"++ show i, category)
-                    | (i,NonTerminal category) <- zip [1 :: Int ..] [c | c <- its, countItIn c ]]
-    countItIn (IndentationTerminal _) = False
+                    | (i,Left category) <- zip [1 :: Int ..] [c | c <- its, countItIn c ]]
+    countItIn (Right (Indentation _)) = False
     countItIn _ = True
 
 -- | Puts together the pattern and actions and returns a string containing all

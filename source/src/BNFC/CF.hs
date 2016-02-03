@@ -25,8 +25,9 @@ module BNFC.CF (
             Rule, Rul(..), lookupRule,
             RhsRule,
             RhsRuleElement(..),
-            nonTerminals,
-            applyOnNonTerminal,
+            UserTerminal(..),
+--            showUserTerminal,
+--            applyOnNonTerminal,
             Pragma(..),
             Exp(..),
             Literal,
@@ -133,26 +134,27 @@ type CF = CFG Fun
 -- function_name . Main_Cat ::= sequence
 type Rule = Rul Fun
 
-type RhsRule = [RhsRuleElement Cat String]
-data RhsRuleElement a b = NonTerminal a
-    | AnonymousTerminal b
-    | IndentationTerminal b
-    deriving (Eq, Show, Ord)
+data UserTerminal = Indentation String
+                | Anonymous String
+             deriving (Eq, Ord)
 
-showRhsRuleElement :: RhsRuleElement Cat String -> String
-showRhsRuleElement (NonTerminal a) = show a
-showRhsRuleElement (IndentationTerminal a) = a
-showRhsRuleElement (AnonymousTerminal a) = a
+instance Show UserTerminal where
+    show (Indentation s) = s
+    show (Anonymous s )  = s
 
-nonTerminals :: [RhsRuleElement a b] -> [a]
-nonTerminals [] = []
-nonTerminals ((NonTerminal x):rhs) = [x] ++ nonTerminals rhs
-nonTerminals (_:rhs) = nonTerminals rhs
+type RhsRule = [RhsRuleElement Cat UserTerminal]
+type RhsRuleElement a b = Either a b
 
-applyOnNonTerminal :: (a -> b) -> (RhsRuleElement a c) -> (RhsRuleElement b c)
-applyOnNonTerminal fun (NonTerminal n) = NonTerminal (fun n)
-applyOnNonTerminal _ (AnonymousTerminal n) = AnonymousTerminal n
-applyOnNonTerminal _ (IndentationTerminal n) = IndentationTerminal n
+-- showUserTerminal :: UserTerminal String -> String
+-- showUserTerminal (Indentation a) = a
+-- showUserTerminal (Anonymous a) = a
+
+
+-- i suspect this is a result of 
+-- applyOnNonTerminal :: (a -> b) -> (RhsRuleElement a c) -> (RhsRuleElement b c)
+-- applyOnNonTerminal fun (Left n) = Left (fun n)
+-- applyOnNonTerminal _ (Right  (Anonymous n)) = (Right $ Anonymous n)
+-- applyOnNonTerminal _ (Right (Indentation n)) = (Right $ Indentation n)
 
 -- | Polymorphic rule type for common type signatures for CF and CFP
 data Rul function = Rule { funRule :: function
@@ -169,7 +171,7 @@ data Rul function = Rule { funRule :: function
 
 instance (Show function) => Show (Rul function) where
   show (Rule f cat rhs) =
-      unwords (show f : "." : show cat : "::=" : map showRhsRuleElement rhs)
+      unwords (show f : "." : show cat : "::=" : map (either show show) rhs)
 
 -- | Polymorphic CFG type for common type signatures for CF and CFP
 data CFG function = CFG
@@ -502,7 +504,7 @@ allCatsNorm = nub . map normCat . allCats
 
 -- | Is the category is used on an rhs?
 isUsedCat :: CFG f -> Cat -> Bool
-isUsedCat cf cat = cat `elem` [c | r <- cfgRules cf, NonTerminal c <- rhsRule r]
+isUsedCat cf cat = cat `elem` [c | r <- cfgRules cf, Left c <- rhsRule r]
 
 -- | Group all categories with their rules.
 ruleGroups :: CF -> [(Cat,[Rule])]
@@ -576,7 +578,7 @@ getAbstractSyntax cf = [ ( c, nub (constructors c) ) | c <- allCatsNorm cf, not 
         guard $ not (isDefinedRule f)
         guard $ not (isCoercion f)
         guard $ normCat (valCat rule) == cat
-        let cs = [normCat c | NonTerminal c <- rhsRule rule, c /= InternalCat]
+        let cs = [normCat c | Left c <- rhsRule rule, c /= InternalCat]
         return (f, cs)
 
 
@@ -592,7 +594,7 @@ cf2data' predicate cf =
                               not (isCoercion f), sameCat cat (valCat r)]))
       | cat <- filter predicate (allCats cf)]
  where
-  mkData (Rule f _ its) = (f,[normCat c | NonTerminal c <- its, c /= InternalCat])
+  mkData (Rule f _ its) = (f,[normCat c | Left c <- its, c /= InternalCat])
 
 cf2data :: CF -> [Data]
 cf2data = cf2data' isDataCat
@@ -610,7 +612,7 @@ specialData cf = [(c,[(show c,[TokenCat "String"])]) | c <- specialCats cf] wher
 
 -- | Checks if the rule is parsable.
 isParsable :: Rul f -> Bool
-isParsable (Rule _ _ (NonTerminal c:_)) = c /= InternalCat
+isParsable (Rule _ _ (Left c:_)) = c /= InternalCat
 isParsable _ = True
 
 -- | Checks if the list has a non-empty rule.
@@ -625,9 +627,9 @@ getCons rs = case find (isConsFun . funRule) rs of
                                   ++ intercalate ", " (map (show . funRule) rs)
   where
     seper [] = []
-    seper (AnonymousTerminal x:_) = x
-    seper (IndentationTerminal x:_) = x
-    seper (NonTerminal _:xs) = seper xs
+    seper (Right (Anonymous x):_) = x
+    seper (Right (Indentation x):_) = x
+    seper (Left _:xs) = seper xs
 
 -- | Helper function that gets the list separator by precedence level
 getSeparatorByPrecedence :: [Rule] -> [(Integer,String)]
@@ -639,8 +641,8 @@ getSeparatorByPrecedence rules = [ (p, getCons (getRulesFor p)) | p <- precedenc
 isEmptyListCat :: CF -> Cat -> Bool
 isEmptyListCat cf c = elem "[]" $ map funRule $ rulesForCat' cf c
 
-isNonterm :: RhsRuleElement Cat String -> Bool
-isNonterm (NonTerminal _) = True
+isNonterm :: RhsRuleElement Cat a -> Bool
+isNonterm (Left _) = True
 isNonterm _ = False
 
 -- used in Happy to parse lists of form 'C t [C]' in reverse order
@@ -705,7 +707,7 @@ cfp2cf :: CFP -> CF
 cfp2cf = fmap fst
 
 trivialProf :: RhsRule -> [([[Int]],[Int])]
-trivialProf its = [([],[i]) | (i,_) <- zip [0..] [c | NonTerminal c <- its]]
+trivialProf its = [([],[i]) | (i,_) <- zip [0..] [c | Left c <- its]]
 
 {-# DEPRECATED allCatsP, allEntryPointsP  "Use the version without P postfix instead" #-}
 

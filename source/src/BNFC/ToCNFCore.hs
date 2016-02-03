@@ -64,7 +64,7 @@ toExp f | isCoercion f = Id
         | otherwise = Con f
 
 delInternal = filter (not . isInternalRhs . rhsRule)
-  where isInternalRhs (NonTerminal c:_) = c == InternalCat
+  where isInternalRhs (Tr c:_) = c == InternalCat
         isInternalRhs _ = False
 
 isCat (AnonymousTerminal _) = False

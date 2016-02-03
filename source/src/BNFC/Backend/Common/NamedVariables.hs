@@ -71,7 +71,8 @@ import BNFC.CF
 import Data.Char (toLower)
 import Data.List (nub)
 import Text.PrettyPrint
-import Control.Arrow ((&&&))
+import Control.Arrow (left, (&&&))
+import Data.Either (lefts)
 
 type IVar = (String, Int)
 --The type of an instance variable
@@ -110,26 +111,26 @@ getVars cs = foldl addVar [] (map identCat cs)
 
 -- | Anotate the right hand side of a rule with variable names
 -- for the non-terminals.
--- >>> numVars [NonTerminal (Cat "A"), Right "+", NonTerminal (Cat "B")]
--- [NonTerminal (A,a_),Right "+",NonTerminal (B,b_)]
--- >>> numVars [NonTerminal (Cat "A"), NonTerminal (Cat "A"), Right ";"]
--- [NonTerminal (A,a_1),NonTerminal (A,a_2),Right ";"]
+-- >>> numVars [Left (Cat "A"), Right (Anonymous "+"), Left (Cat "B")]
+-- [Left (A,a_),Right "+",Left (B,b_)]
+-- >>> numVars [Left (Cat "A"), Left (Cat "A"), Right (Anonymous ";")]
+-- [Left (A,a_1),Left (A,a_2),Right (Anonymous ";")]
 numVars :: [RhsRuleElement Cat a] -> [RhsRuleElement (Cat, Doc) a]
 numVars cats =
   -- First, we anotate each NonTerminal _ with a variable name (not univque)
-  let withNames = map (applyOnNonTerminal (id &&& (varName . identCat . normCat))) cats
+  let withNames = map (left (id &&& (varName . identCat . normCat))) cats
   -- next, the function f' adds numbers where needed...
   in f' [] withNames
   where f' _ [] = []
-        f' env (AnonymousTerminal t:xs) = AnonymousTerminal t:f' env xs
-        f' env (IndentationTerminal t:xs) = IndentationTerminal t:f' env xs
-        f' env (NonTerminal (c,n):xs) =
+        f' env ((Right t):xs)     
+            = (Right t):f' env xs
+        f' env (Left (c,n):xs) =
             -- we should use n_i as var name
             let i = maybe 1 (+1) (lookup n env)
             -- Is there more use of the name u_ ?
-                thereIsMore = n `elem` map snd (nonTerminals xs)
+                thereIsMore = n `elem` map snd (lefts xs)
                 vname = text n <> if i > 1 || thereIsMore then int i else empty
-            in NonTerminal (c, vname) : f' ((n,i):env) xs
+            in Left (c, vname) : f' ((n,i):env) xs
 
 --This makes numbers a little nicer.
 --If there's only one variable of a type we drop the redundant _1 label.
@@ -137,12 +138,11 @@ numVars cats =
 -- is the same.)
 fixOnes :: Eq b => [RhsRuleElement String b] -> [RhsRuleElement String b]
 fixOnes [] = []
-fixOnes (AnonymousTerminal f : fs) = AnonymousTerminal f : fixOnes fs
-fixOnes (IndentationTerminal f : fs) = IndentationTerminal f : fixOnes fs
-fixOnes (NonTerminal f : fs) =
-  if NonTerminal (f ++ "2") `elem` fs
-    then NonTerminal (f ++ "1") : fixOnes fs
-    else NonTerminal f : fixOnes fs
+fixOnes ((Right t) : fs) = Right t : fixOnes fs
+fixOnes (Left f : fs) =
+  if Left (f ++ "2") `elem` fs
+    then Left (f ++ "1") : fixOnes fs
+    else Left f : fixOnes fs
 
 --This fixes the problem with coercions.
 fixCoercions :: [(Cat, [Rule])] -> [(Cat, [Rule])]
