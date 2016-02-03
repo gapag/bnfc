@@ -49,7 +49,7 @@ module BNFC.Backend.Java.CFtoJavaPrinter15 ( cf2JavaPrinter ) where
 import BNFC.CF
 import BNFC.Backend.Common (renderListSepByPrecedence)
 import BNFC.Backend.Common.NamedVariables
-import BNFC.Backend.Java.Utils(TypeMapping)
+import BNFC.Backend.Java.Utils(TypeMapping, integerDoubleTypename)
 import BNFC.Utils ( (+++) )
 import Data.List
 import Data.Char ( toLower, isSpace )
@@ -281,7 +281,8 @@ prRule _nm _ = ""
 -- |
 --
 -- >>> let lfoo = ListCat (Cat "Foo")
--- >>> prList [] lfoo [Rule "[]" lfoo [], Rule "(:)" lfoo [Left (Cat "Foo"), Right (Anonymous "."), Left lfoo]]
+-- >>> prList integerDoubleTypename [] lfoo [Rule "[]" lfoo [], Rule "(:)" lfoo [Left (Cat "Foo"), Right (Anonymous "."), Left lfoo]]
+-- <BLANKLINE>
 -- for (java.util.Iterator<Foo> it = foo.iterator(); it.hasNext();)
 -- {
 --   pp(it.next(), _i_);

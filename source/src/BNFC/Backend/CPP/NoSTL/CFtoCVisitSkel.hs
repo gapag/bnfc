@@ -210,7 +210,7 @@ prData user (cat, rules) =
     Nothing ->  "void Skeleton::visit" ++ cl ++ "(" ++ cl +++ "*" ++ vname ++ ") {} //abstract class\n\n"
 
 -- | Visits all the instance variables of a category.
--- >>> prRule [Cat "A"] (Rule "F" (Cat "S") [Right "X", Left (Cat "A"), Left (Cat "B")])
+-- >>> prRule [Cat "A"] (Rule "F" (Cat "S") [Right (Anonymous "X"), Left (Cat "A"), Left (Cat "B")])
 -- void Skeleton::visitF(F *f)
 -- {
 --   /* Code For F Goes Here */

@@ -23,7 +23,7 @@ module BNFC.Backend.Java.CFtoComposVisitor (cf2ComposVisitor) where
 import Data.List
 import Data.Either (lefts)
 import BNFC.CF
-import BNFC.Backend.Java.Utils (TypeMapping, isBasicType)
+import BNFC.Backend.Java.Utils (TypeMapping, isBasicType, integerDoubleTypename)
 import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
 import BNFC.PrettyPrint
@@ -63,7 +63,7 @@ prData tm packageAbsyn user (cat, rules) = unlines
     , concatMap (render . prRule tm packageAbsyn user cat) rules
     ]
 -- | traverses a standard rule.
--- >>> prRule "lang.absyn" [Cat "A"] (Cat "B") (Rule "F" (Cat "B") [Left (Cat "A"), Right (Anonymous "+"), Left (ListCat (Cat "B"))])
+-- >>> prRule integerDoubleTypename "lang.absyn" [Cat "A"] (Cat "B") (Rule "F" (Cat "B") [Left (Cat "A"), Right (Anonymous "+"), Left (ListCat (Cat "B"))])
 --     public B visit(lang.absyn.F p, A arg)
 --     {
 --       String a_ = p.a_;
@@ -88,17 +88,17 @@ prRule tm packageAbsyn user cat (Rule fun _ cats)
 prRule _ _ _ _ _ = ""
 
 -- | Traverses a class's instance variables.
--- >>> prCat [Cat "A"] (Cat "A", "a_")
+-- >>> prCat integerDoubleTypename [Cat "A"] (Cat "A", "a_")
 -- String a_ = p.a_;
--- >>> prCat [] (ListCat (Cat "Integer"), "listinteger_")
+-- >>> prCat integerDoubleTypename [] (ListCat (Cat "Integer"), "listinteger_")
 -- ListInteger listinteger_ = p.listinteger_;
--- >>> prCat [] (ListCat (Cat "N"), "listn_")
+-- >>> prCat integerDoubleTypename [] (ListCat (Cat "N"), "listn_")
 -- ListN listn_ = new ListN();
 -- for (N x : p.listn_)
 -- {
 --   listn_.add(x.accept(this,arg));
 -- }
--- >>> prCat [] (Cat "N", "n_")
+-- >>> prCat integerDoubleTypename [] (Cat "N", "n_")
 -- N n_ = p.n_.accept(this, arg);
 prCat :: TypeMapping -- ^ Mapping from CF types to Java types
       -> [UserDef]   -- ^ User defined token categories

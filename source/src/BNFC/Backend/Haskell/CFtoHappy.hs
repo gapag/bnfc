@@ -151,7 +151,7 @@ rulesForHappy absM functor cf = map mkOne $ ruleGroups cf
 -- ("ListA A ','","flip (:) $1 $2")
 --
 -- Note that functors don't concern list constructors:
--- >>> constructRule "Abs" True [ListCat (Cat "A")] (Rule "(:)" (ListCat (Cat "A")) [Left (Cat "A"), Right (AnonymousTerminal ","), Left (ListCat (Cat "A"))])
+-- >>> constructRule "Abs" True [ListCat (Cat "A")] (Rule "(:)" (ListCat (Cat "A")) [Left (Cat "A"), Right (Anonymous ","), Left (ListCat (Cat "A"))])
 -- ("ListA A ','","flip (:) $1 $2")
 constructRule :: String -> Bool -> [Cat] -> Rule -> (Pattern,Action)
 constructRule absName functor revs r0@(Rule fun cat _) = (pattern, action)

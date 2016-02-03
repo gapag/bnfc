@@ -393,7 +393,7 @@ prPrintData _ inPackage cf (cat, rules) = -- Not a list
 -- | Generate pretty printer visitor for a list category:
 --
 -- >>> let c = Cat "C" ; lc = ListCat c
--- >>> let rules = [Rule "[]" lc [], Rule "(:)" lc [Left c, Right "-", Left lc]]
+-- >>> let rules = [Rule "[]" lc [], Rule "(:)" lc [Left c, Right (Anonymous "-"), Left lc]]
 -- >>> genPrintVisitorList (lc, rules)
 -- void PrintAbsyn::visitListC(ListC *listc)
 -- {
@@ -405,7 +405,7 @@ prPrintData _ inPackage cf (cat, rules) = -- Not a list
 -- }
 --
 -- >>> let c2 = CoercCat "C" 2 ; lc2 = ListCat c2
--- >>> let rules2 = rules ++ [Rule "[]" lc2 [], Rule "(:)" lc2 [Left c2, Right "+", Left lc2]]
+-- >>> let rules2 = rules ++ [Rule "[]" lc2 [], Rule "(:)" lc2 [Left c2, Right (Anonymous "+"), Left lc2]]
 -- >>> genPrintVisitorList (lc, rules2)
 -- void PrintAbsyn::visitListC(ListC *listc)
 -- {

@@ -180,7 +180,7 @@ constructRule tm packageAbsyn cf env rules nt =
 
 
 noAction :: String -> (Action, AtomicPattern, Action)
-noAction s = ("", s , " ")
+noAction s = ("", s , "")
 
 indentationAction :: String -> AtomicPattern -> (Action, AtomicPattern, Action)
 indentationAction pre ap = (brac pre, ap, brac "resume")
@@ -226,10 +226,10 @@ generateAction tm packageAbsyn nt f ms rev
 
 -- | Generate patterns and a set of metavariables indicating
 -- where in the pattern the non-terminal
--- >>> generatePatterns CF{cfgPragmas = []} 2 [] (Rule "myfun" (Cat "A") [])
--- (" /* empty */ ",[])
--- >>> generatePatterns CF{cfgPragmas = []} 3 [("def", "_SYMB_1")] (Rule "myfun" (Cat "A") [Right (Anonymous "def"), Left (Cat "B")])
--- ("_SYMB_1 p_3_2=b ",[("p_3_2",B)])
+-- >>> generatePatterns (\x -> ("action", "pattern", "action")) 2 [] (Rule "myfun" (Cat "A") [])
+-- ([(""," /* empty */ ","")],[])
+-- >>> generatePatterns (\x -> ("action", "pattern", "action")) 3 [("def", "_SYMB_1")] (Rule "myfun" (Cat "A") [Right (Anonymous "def"), Left (Cat "B")])
+-- ([("","_SYMB_1",""),("action","p_3_2=pattern","action")],[("p_3_2",B)])
 generatePatterns :: (Cat -> PatternSegment) -> Int -> SymEnv -> Rule -> (Pattern,[MetaVar])
 generatePatterns cs ind env r = case rhsRule r of
     []  -> ([noAction " /* empty */ "],[])

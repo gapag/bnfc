@@ -64,12 +64,11 @@ toExp f | isCoercion f = Id
         | otherwise = Con f
 
 delInternal = filter (not . isInternalRhs . rhsRule)
-  where isInternalRhs (Tr c:_) = c == InternalCat
+  where isInternalRhs (Left c:_) = c == InternalCat
         isInternalRhs _ = False
 
-isCat (AnonymousTerminal _) = False
-isCat (IndentationTerminal _) = False
-isCat (NonTerminal _) = True
+isCat (Right _) = False
+isCat (Left _) = True
 
 
 group0 :: Eq a => [(a,[b])] -> [(a,[b])]
@@ -80,11 +79,11 @@ group0 ((a,bs):xs) = (a,bs ++ concatMap snd ys) : group0 zs
 group' :: Ord a => [(a,[b])] -> [(a,[b])]
 group' = group0 . sortBy (compare `on` fst)
 
-catTag :: RhsRuleElement Cat String -> Doc
-catTag (NonTerminal c) = "CAT_" <> text (concatMap escape (show c))
-catTag (AnonymousTerminal t) = tok t
+catTag :: RhsRuleElement Cat UserTerminal -> Doc
+catTag (Left c) = "CAT_" <> text (concatMap escape (show c))
+catTag (Right (Anonymous t) ) = tok t
     where tok t = "TOK_" <> text (concatMap escape t)
-catTag (IndentationTerminal t) = catTag (AnonymousTerminal t)
+catTag (Right (Indentation t)) = catTag (Right (Anonymous t))
 
 escape c | isAlphaNum c || c == '_' = [c]
 escape '[' = ""
@@ -117,16 +116,14 @@ toBinRul (Rule f cat rhs) | length rhs > 2 = do
   cat' <- liftM Cat allocateCatName
   r' <- toBinRul $ Rule f cat' p
   tell $ M.singleton cat' (int (length p) <> "-prefix of " <> prettyExp f <> " " <> parens (prettyRHS p))
-  return $ Rule (Con "($)") cat [NonTerminal cat',l]
+  return $ Rule (Con "($)") cat [Left cat',l]
          : r'
   where l = last rhs
         p = init rhs
 toBinRul r = return [r]
 
-prettyRHS = hcat . punctuate " " . map (ppRhsRuleElement (text . show) (quotes . text))
-    where ppRhsRuleElement l _ (NonTerminal q) = l q
-          ppRhsRuleElement _ r (AnonymousTerminal q) = r q
-          ppRhsRuleElement _ r (IndentationTerminal q) = r q
+prettyRHS = hcat . punctuate " " . map (either (text . show) (quotes . text . show))
+    
 
 ---------------------------
 -- Fixpoint utilities
@@ -139,14 +136,13 @@ type Set k x = M.Map k [x]
 
 fixpointOnGrammar :: (Show k, Show x,Ord k, Ord x) => String -> (Set k x -> Rul f -> Set k x) -> CFG f -> Set k x
 fixpointOnGrammar name f cf = case fixn 100 step M.empty of
-  NonTerminal x -> error $ "Could not find fixpoint of " ++ name ++". Last iteration:\n" ++ show x
-  AnonymousTerminal x -> x
-  IndentationTerminal x -> x
+  Left x -> error $ "Could not find fixpoint of " ++ name ++". Last iteration:\n" ++ show x
+  Right x -> x
   where step curSet = M.unionsWith (∪) (map (f curSet) (cfgRules cf))
 
 fixn :: Eq a => Int -> (a -> a) -> a -> RhsRuleElement a a
-fixn 0 _ x = NonTerminal x
-fixn n f x = if x' == x then AnonymousTerminal x else fixn (n-1) f x'
+fixn 0 _ x = Left x
+fixn n f x = if x' == x then Right x else fixn (n-1) f x'
   where x' = f x
 
 -------------------------------------------------------
@@ -160,9 +156,8 @@ cross (x:xs) = [y:ys | y <- x,  ys <- cross xs]
 
 nullRule :: Nullable -> Rul Exp -> (Cat,[Exp])
 nullRule nullset (Rule f c rhs) = (c, map (appMany f) (cross (map nulls rhs)))
-    where nulls (AnonymousTerminal _) = []
-          nulls (IndentationTerminal _) = []
-          nulls (NonTerminal cat) = lookupMulti cat nullset
+    where nulls (Right _) = []
+          nulls (Left cat) = lookupMulti cat nullset
 
 nullSet :: CFG Exp -> Nullable
 nullSet = fixpointOnGrammar "nullable" (\s r -> uncurry M.singleton (nullRule s r))
@@ -175,9 +170,8 @@ delNullable nullset r@(Rule f cat rhs) = case rhs of
   [r1,r2] -> [r] ++ [Rule (app'  f x) cat [r2] | x <- lk' r1]
                  ++ [Rule (app2 (isCat r1) f x) cat [r1] | x <- lk' r2]
   _ -> error $ "Panic:" ++ show r ++ "should have at most two elements."
-  where lk' (AnonymousTerminal _) = []
-        lk' (IndentationTerminal _) = []
-        lk' (NonTerminal cat) = lookupMulti cat nullset
+  where lk' (Right _) = []
+        lk' (Left cat) = lookupMulti cat nullset
 
 
 delNull cf = onRules (concatMap (delNullable (nullSet cf))) cf
@@ -186,18 +180,17 @@ delNull cf = onRules (concatMap (delNullable (nullSet cf))) cf
 ---------------
 -- UNIT
 
-type UnitRel cat = Set (RhsRuleElement cat String) (Exp,cat)
+type UnitRel cat = Set (RhsRuleElement cat UserTerminal) (Exp,cat)
 
 -- (c,(f,c')) ∈ unitSet   ⇒  f : c → c'
 
 unitSet :: CFG Exp -> UnitRel Cat
 unitSet = fixpointOnGrammar "unit set" unitRule
 
-unitRule unitSet (Rule f c [r]) = M.singleton r $ (f,c) : [(g `appl` f,c') | (g,c') <- lookupMulti (NonTerminal c) unitSet]
+unitRule unitSet (Rule f c [r]) = M.singleton r $ (f,c) : [(g `appl` f,c') | (g,c') <- lookupMulti (Left c) unitSet]
          where appl = case r of
-                 NonTerminal _ -> after
-                 AnonymousTerminal _ -> app'
-                 IndentationTerminal _ -> app'
+                 Left _ -> after
+                 Right _ -> app'
 unitRule _ _ = M.empty
 
 isUnitRule (Rule _ _ [_]) = True
@@ -206,7 +199,7 @@ isUnitRule _ = False
 
 ------------------------
 -- Left/Right occurences
-type RHSEl = RhsRuleElement Cat String
+type RHSEl = RhsRuleElement Cat UserTerminal
 
 isOnLeft, isOnRight :: RHSEl -> Rul f -> Bool
 isOnLeft c (Rule _ _ [c',_]) = c == c'
@@ -216,7 +209,7 @@ isOnRight c (Rule _ _ [_,c']) = c == c'
 isOnRight _ _ = False
 
 isEntryPoint cf el = case el of
-                        NonTerminal n -> (n `elem` allEntryPoints cf)
+                        Left n -> (n `elem` allEntryPoints cf)
                         _             -> False
 
 occurs :: (RHSEl -> Rul f -> Bool) -> RHSEl -> CFG f -> Bool
@@ -227,7 +220,7 @@ splitLROn f cf xs = filt <*> pure xs
   where filt = filter (\c -> occurs isOnLeft  (f c) cf || isEntryPoint cf (f c)) :/:
                filter (\c -> occurs isOnRight (f c) cf)
 
-isSpecial (NonTerminal (Cat ('@':'@':_))) = True
+isSpecial (Left (Cat ('@':'@':_))) = True
 isSpecial _ = False
 
 optim :: (a -> RHSEl) -> Pair [a] -> Pair [(a,Doc -> Doc)]
@@ -249,9 +242,9 @@ splitOptim f cf xs = optim f $ splitLROn f cf $ xs
 leftRight pos s (Rule _ c rhs) = M.singleton (show c) (lkCat x s)
   where x = pos rhs
 
-lkCat (AnonymousTerminal t) _ = [AnonymousTerminal t]
-lkCat (IndentationTerminal t) _ = [IndentationTerminal t]
-lkCat (NonTerminal c) s = NonTerminal c:lookupMulti (show c) s
+lkCat (Right (Anonymous t)) _ = [Right (Anonymous t)]
+lkCat (Right (Indentation t)) _ = [Right (Indentation t)]
+lkCat (Left c) s = Left c:lookupMulti (show c) s
 
 -- neighbors A B = ∃ A' B'. P ::= A' B' ∧  A ∈ rightOf A'  ∧  B ∈ leftOf B
 neighborSet cf = map (second (nub . sort)) $ group' [(x',lkCat y leftSet) | Rule _ _ [x,y] <- cfgRules cf, x' <- lkCat x rightSet]

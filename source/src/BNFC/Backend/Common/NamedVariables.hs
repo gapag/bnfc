@@ -112,9 +112,9 @@ getVars cs = foldl addVar [] (map identCat cs)
 -- | Anotate the right hand side of a rule with variable names
 -- for the non-terminals.
 -- >>> numVars [Left (Cat "A"), Right (Anonymous "+"), Left (Cat "B")]
--- [Left (A,a_),Right "+",Left (B,b_)]
+-- [Left (A,a_),Right +,Left (B,b_)]
 -- >>> numVars [Left (Cat "A"), Left (Cat "A"), Right (Anonymous ";")]
--- [Left (A,a_1),Left (A,a_2),Right (Anonymous ";")]
+-- [Left (A,a_1),Left (A,a_2),Right ;]
 numVars :: [RhsRuleElement Cat a] -> [RhsRuleElement (Cat, Doc) a]
 numVars cats =
   -- First, we anotate each NonTerminal _ with a variable name (not univque)

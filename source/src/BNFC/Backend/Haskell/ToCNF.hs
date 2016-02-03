@@ -67,10 +67,9 @@ class Pretty a where
 instance (Pretty k, Pretty v) => Pretty (Set k v) where
   pretty s = sep [pretty k <> " --> " <> pretty v | (k,x) <- M.assocs s, v <- x]
 
-instance Pretty (RhsRuleElement Cat String) where
+instance Pretty (RhsRuleElement Cat UserTerminal) where
   pretty (Left x) = text $ show x
-  pretty (Right $ Anonymous x) = quotes $ text x
-  pretty (Right $ Indentation x) = quotes $ text x
+  pretty (Right x) = quotes $ text $ show x
 
 instance Pretty String where
   pretty = text
@@ -111,9 +110,8 @@ genCatTags cf = "data CATEGORY = " <> punctuate' "|" (map catTag (allSyms cf)) $
 
 genDesc :: CFG Exp -> CatDescriptions -> Doc
 genDesc cf descs = vcat ["describe " <> catTag s <> " = " <> text (show (descOf s)) | s <- allSyms cf]
-  where descOf :: RhsRuleElement Cat String -> String
-        descOf (Right $ Anonymous x) = "token " <> x
-        descOf (Right $ Indentation x) = "token " <> x
+  where descOf :: RhsRuleElement Cat UserTerminal -> String
+        descOf (Right x) = "token " <> (show x)
         descOf (Left x) = maybe (show x) render $ M.lookup x descs
 
 genCombTable :: UnitRel Cat -> CFG Exp -> Doc
@@ -123,7 +121,7 @@ genCombTable units cf =
   $$ "combine _ _ _ = pure []"
 
 allSyms :: CFG Exp -> RhsRule
-allSyms cf = map Left (allCats cf  ++ literals cf) ++ map ((Right $ Anonymous) . fst) (cfTokens cf)
+allSyms cf = map Left (allCats cf  ++ literals cf) ++ map ((\x -> Right (Anonymous x)) . fst) (cfTokens cf)
 
 
 ppPair (x,y) = parens $ x <> comma <> " " <> y
@@ -169,7 +167,7 @@ genTokCommon cf xs = prettyPair (gen <$> splitOptim fst cf xs)
 
 genSpecEntry cf units (tokName,constrName,fun) = "tokenToCats p (PT (Pn _ l c) (" <> constrName <> " x)) = " <> genTokCommon cf xs
   where xs = map (second (prettyExp . (\f -> unsafeCoerce' (f `app'` tokArgs)))) $
-             (NonTerminal tokName, fun) : [(Left c,f `after` fun) | (f,c) <- lookupMulti (Left tokName) units]
+             (Left tokName, fun) : [(Left c,f `after` fun) | (f,c) <- lookupMulti (Left tokName) units]
         tokArgs | isPositionCat cf tokName = Con "((l,c),x)"
                 | otherwise = Con "x"
 

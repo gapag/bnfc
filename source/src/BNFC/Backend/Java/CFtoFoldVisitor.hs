@@ -21,7 +21,7 @@
 module BNFC.Backend.Java.CFtoFoldVisitor (cf2FoldVisitor) where
 
 import BNFC.CF
-import BNFC.Backend.Java.Utils(isBasicType, TypeMapping)
+import BNFC.Backend.Java.Utils(isBasicType, TypeMapping, integerDoubleTypename)
 import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
 import Data.Either (lefts)
@@ -71,16 +71,16 @@ prRule tm packageAbsyn user _ (Rule fun _ cats)
 prRule _ _ _ _ _ = ""
 
 -- | Traverses a class's instance variables.
--- >>> prCat [Cat "A"] (Cat "A", "a_")
+-- >>> prCat integerDoubleTypename [Cat "A"] (Cat "A", "a_")
 -- <BLANKLINE>
--- >>> prCat [] (ListCat (Cat "Integer"), "listinteger_")
+-- >>> prCat integerDoubleTypename [] (ListCat (Cat "Integer"), "listinteger_")
 -- <BLANKLINE>
--- >>> prCat [] (ListCat (Cat "N"), "listn_")
+-- >>> prCat integerDoubleTypename [] (ListCat (Cat "N"), "listn_")
 -- for (N x : p.listn_)
 -- {
 --   r = combine(x.accept(this, arg), r, arg);
 -- }
--- >>> prCat [] (Cat "N", "n_")
+-- >>> prCat integerDoubleTypename [] (Cat "N", "n_")
 -- r = combine(p.n_.accept(this, arg), r, arg);
 prCat :: TypeMapping
       -> [UserDef]

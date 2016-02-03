@@ -48,7 +48,7 @@ module BNFC.Backend.Java.CFtoJavaAbs15 (cf2JavaAbs) where
 
 import BNFC.CF
 import BNFC.Utils((+++),(++++))
-import BNFC.Backend.Java.Utils(TypeMapping)
+import BNFC.Backend.Java.Utils(TypeMapping, integerDoubleTypename)
 import BNFC.Backend.Common.NamedVariables hiding (IVar, getVars, varName)
 import Data.Function (on)
 import Data.List
@@ -231,9 +231,9 @@ iVarName (_,n,nm) = text (varName nm) <> text (showNum n)
 
 -- | The constructor just assigns the parameters to the corresponding instance
 -- variables.
--- >>> prConstructor "bla" [] [("A",1,"a"),("B",1,""),("A",2,"")] [Cat "A",Cat "B", Cat "C"]
+-- >>> prConstructor integerDoubleTypename "bla" [] [("A",1,"a"),("B",1,""),("A",2,"")] [Cat "A",Cat "B", Cat "C"]
 -- public bla(A p1, B p2, C p3) { a_1 = p1; _ = p2; _2 = p3; }
--- >>> prConstructor "EInt" [] [("Integer",0,"integer")] [Cat "Integer"]
+-- >>> prConstructor integerDoubleTypename "EInt" [] [("Integer",0,"integer")] [Cat "Integer"]
 -- public EInt(Integer p1) { integer_ = p1; }
 prConstructor :: TypeMapping -> String -> [UserDef] -> [IVar] -> [Cat] -> Doc
 prConstructor tm c u vs cats =

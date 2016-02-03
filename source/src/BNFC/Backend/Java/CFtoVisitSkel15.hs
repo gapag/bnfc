@@ -41,7 +41,7 @@
 module BNFC.Backend.Java.CFtoVisitSkel15 (cf2VisitSkel) where
 
 import BNFC.CF
-import BNFC.Backend.Java.Utils(TypeMapping)
+import BNFC.Backend.Java.Utils(TypeMapping, integerDoubleTypename)
 import BNFC.Utils ((+++))
 import BNFC.Backend.Common.NamedVariables
 import Text.PrettyPrint
@@ -88,7 +88,7 @@ prData tm packageAbsyn user (cat, rules)
         ]
 
 -- | traverses a standard rule.
--- >>> prRule "ABSYN" [] (Rule "EInt" undefined [Left (TokenCat "Integer"), Left (Cat "NT")])
+-- >>> prRule integerDoubleTypename "ABSYN" [] (Rule "EInt" undefined [Left (TokenCat "Integer"), Left (Cat "NT")])
 -- public R visit(ABSYN.EInt p, A arg)
 -- { /* Code For EInt Goes Here */
 --   //p.integer_;
@@ -97,7 +97,7 @@ prData tm packageAbsyn user (cat, rules)
 -- }
 --
 -- It skips the internal category (indicating that a rule is not parsable)
--- >>> prRule "ABSYN" [] (Rule "EInt" undefined [Left (InternalCat), Left (TokenCat "Integer")])
+-- >>> prRule integerDoubleTypename "ABSYN" [] (Rule "EInt" undefined [Left (InternalCat), Left (TokenCat "Integer")])
 -- public R visit(ABSYN.EInt p, A arg)
 -- { /* Code For EInt Goes Here */
 --   //p.integer_;
@@ -118,15 +118,15 @@ prRule tm packageAbsyn user (Rule fun _ cats)
 prRule _ _ _ _ = ""
 
 -- | Traverses a class's instance variables.
--- >>> prCat [] (Cat "A", "a_")
+-- >>> prCat integerDoubleTypename [] (Cat "A", "a_")
 -- p.a_.accept(new AVisitor<R,A>(), arg);
--- >>> prCat [] (TokenCat "Integer", "integer_")
+-- >>> prCat integerDoubleTypename [] (TokenCat "Integer", "integer_")
 -- //p.integer_;
--- >>> prCat [Cat "A"] (TokenCat "A", "a_")
+-- >>> prCat integerDoubleTypename [Cat "A"] (TokenCat "A", "a_")
 -- //p.a_;
--- >>> prCat [Cat "A"] (TokenCat "A", "a_2")
+-- >>> prCat integerDoubleTypename [Cat "A"] (TokenCat "A", "a_2")
 -- //p.a_2;
--- >>> prCat [] (ListCat (Cat "A"), "lista_")
+-- >>> prCat integerDoubleTypename [] (ListCat (Cat "A"), "lista_")
 -- for (A x: p.lista_)
 -- { /* ... */ }
 prCat :: TypeMapping -> [UserDef]    -- ^ User defined tokens

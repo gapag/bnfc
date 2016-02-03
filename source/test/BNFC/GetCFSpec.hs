@@ -17,13 +17,13 @@ spec = do
             `shouldBe` [Left (CoercCat "Foo" 3)]
 
     it "translate a terminal" $
-        transItem (Abs.Terminal "foobar") `shouldBe` [Right "foobar"]
+        transItem (Abs.Terminal "foobar") `shouldBe` [Right (Anonymous "foobar")]
 
     it "skips empty terminals" $
         transItem (Abs.Terminal "") `shouldBe` []
 
     it "splits multiwords terminals" $
-        transItem (Abs.Terminal "foo bar") `shouldBe` [Right "foo", Right "bar"]
+        transItem (Abs.Terminal "foo bar") `shouldBe` [Right (Anonymous "foo"), Right (Anonymous "bar")]
 
   describe "checkRule" $ do
 

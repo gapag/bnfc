@@ -165,7 +165,7 @@ removeDelims xs = (ys ++ map delimToSep ds,
     isDelim (Abs.Delimiters{}) = True
     isDelim _ = False
 
-    inlineDelim :: Abs.Def -> RhsRuleElement Cat String ->  RhsRule
+    inlineDelim :: Abs.Def -> RhsRuleElement Cat UserTerminal ->  RhsRule
     inlineDelim (Abs.Delimiters cat open close _ _) (Left c)
       | c == ListCat (transCat cat) = [Right (Anonymous open), Left c, Right (Anonymous close)]
     inlineDelim _ x = [x]
@@ -430,9 +430,6 @@ checkRule cf (Rule (f,_) cat rhs)
   | otherwise      = Nothing
  where
    s  = f ++ "." +++ show cat +++ "::=" +++ unwords (map (either show show) rhs) -- Todo: consider using the show instance of Rule
-   shRhs (NonTerminal a) = show a
-   shRhs (IndentationTerminal a) = show a
-   shRhs (AnonymousTerminal a) = show a
    c  = normCat cat
    cs = [normCat c | Left c <- rhs]
    badCoercion = isCoercion f && [c] /= cs

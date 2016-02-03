@@ -222,7 +222,7 @@ prtSymbols [] = empty
 prtSymbols xs = foldr ((+++) . p) [] xs
  where p (Left r) = nonterminal r --- (prt r)
        p (Right (Anonymous r)) = terminal    (prt r)
-       p (Right (Indentation r)) = p (Right AnonymousTerminal r)
+       p (Right (Indentation r)) = p (Right $ Anonymous r)
 
 
 prt :: String -> String
